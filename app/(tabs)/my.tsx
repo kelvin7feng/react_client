@@ -1,16 +1,115 @@
-import { Text, View, StyleSheet, Image, ScrollView, SafeAreaView, Platform, StatusBar } from 'react-native';
+import { useState, useEffect } from 'react';
+import {
+    Text,
+    View,
+    StyleSheet,
+    Image,
+    ScrollView,
+    SafeAreaView,
+    Platform,
+    StatusBar,
+    ActivityIndicator,
+    Alert
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function MyScreen() {
-    // 模拟用户数据
-    const userData = {
-        name: '张三',
-        avatar: 'https://picsum.photos/200/200?random=1',
-        bio: '热爱生活，喜欢旅行和摄影，记录美好瞬间',
-        gender: '男',
-        birthday: '1990-05-15',
-        email: 'zhangsan@example.com'
+    const [userData, setUserData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // 从API获取用户数据
+    useEffect(() => {
+        const fetchUserData = async () => {
+            try {
+                setLoading(true);
+                const response = await fetch('http://119.28.108.105:8090/getbasicinfo?id=1000000');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                // 检查API返回的code是否为0（成功）
+                if (result.code !== 0) {
+                    throw new Error(result.msg || '获取用户信息失败');
+                }
+
+                // 使用API返回的数据
+                setUserData(result.data);
+            } catch (err) {
+                setError(err.message);
+                Alert.alert('错误', '获取用户信息失败: ' + err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchUserData();
+    }, []);
+
+    // 格式化日期函数
+    const formatDate = (dateString) => {
+        if (!dateString) return '未知';
+
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        } catch (e) {
+            return dateString;
+        }
     };
+
+    // 格式化性别函数
+    const formatGender = (genderCode) => {
+        switch (genderCode) {
+            case 1: return '男';
+            case 2: return '女';
+            default: return '未知';
+        }
+    };
+
+    // 加载状态显示
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="gray" />
+                    <Text style={styles.loadingText}>数据加载中</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // 错误状态显示
+    if (error) {
+        return (
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle" size={50} color="#FF3B30" />
+                    <Text style={styles.errorText}>加载失败</Text>
+                    <Text style={styles.errorSubText}>{error}</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // 如果没有用户数据
+    if (!userData) {
+        return (
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.errorContainer}>
+                    <Ionicons name="person" size={50} color="#8E8E93" />
+                    <Text style={styles.errorText}>未找到用户数据</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -18,11 +117,11 @@ export default function MyScreen() {
                 {/* 用户头像和名字部分 */}
                 <View style={styles.profileHeader}>
                     <Image
-                        source={{ uri: userData.avatar }}
+                        source={{ uri: userData.avatar || 'https://picsum.photos/200/200?random=1' }}
                         style={styles.avatar}
                     />
-                    <Text style={styles.name}>{userData.name}</Text>
-                    <Text style={styles.bio}>{userData.bio}</Text>
+                    <Text style={styles.name}>{userData.username || '未知用户'}</Text>
+                    <Text style={styles.signature}>{userData.signature || '暂无个性签名'}</Text>
                 </View>
 
                 {/* 个人信息详情部分 */}
@@ -33,7 +132,9 @@ export default function MyScreen() {
                         </View>
                         <View style={styles.infoContent}>
                             <Text style={styles.infoLabel}>性别</Text>
-                            <Text style={styles.infoValue}>{userData.gender}</Text>
+                            <Text style={styles.infoValue}>
+                                {formatGender(userData.gender)}
+                            </Text>
                         </View>
                     </View>
 
@@ -43,7 +144,9 @@ export default function MyScreen() {
                         </View>
                         <View style={styles.infoContent}>
                             <Text style={styles.infoLabel}>生日</Text>
-                            <Text style={styles.infoValue}>{userData.birthday}</Text>
+                            <Text style={styles.infoValue}>
+                                {formatDate(userData.birthday)}
+                            </Text>
                         </View>
                     </View>
 
@@ -53,7 +156,7 @@ export default function MyScreen() {
                         </View>
                         <View style={styles.infoContent}>
                             <Text style={styles.infoLabel}>邮箱</Text>
-                            <Text style={styles.infoValue}>{userData.email}</Text>
+                            <Text style={styles.infoValue}>{userData.email || '未设置'}</Text>
                         </View>
                     </View>
                 </View>
@@ -72,6 +175,34 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f8f9fa',
     },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 16,
+        color: '#8E8E93',
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    errorText: {
+        marginTop: 10,
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#FF3B30',
+    },
+    errorSubText: {
+        marginTop: 5,
+        fontSize: 14,
+        color: '#8E8E93',
+        textAlign: 'center',
+    },
     profileHeader: {
         alignItems: 'center',
         paddingVertical: 30,
@@ -80,13 +211,12 @@ const styles = StyleSheet.create({
         marginBottom: 10,
         borderBottomWidth: 1,
         borderBottomColor: '#f0f0f0',
-        // 为刘海屏设备添加额外的顶部间距
         marginTop: Platform.OS === 'ios' ? 10 : 0,
     },
     avatar: {
         width: 100,
         height: 100,
-        borderRadius: 50, // 圆形头像
+        borderRadius: 50,
         marginBottom: 15,
         borderWidth: 3,
         borderColor: '#fff',
@@ -105,7 +235,7 @@ const styles = StyleSheet.create({
         color: '#333',
         marginBottom: 8,
     },
-    bio: {
+    signature: {
         fontSize: 14,
         color: '#666',
         textAlign: 'center',
