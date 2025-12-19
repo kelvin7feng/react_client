@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 
 // 可复用的图片组件，处理加载失败的情况
 const VehicleImage = ({ uri, style }) => {
@@ -71,7 +72,8 @@ const BrandVehiclesScreen = () => {
 
         const fetchVehicles = async () => {
             try {
-                const response = await fetch(`http://119.28.108.105:8090/getvehicles?brand_id=${brandId}`);
+                const brandIdStr = Array.isArray(brandId) ? brandId[0] : brandId;
+                const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_VEHICLES, { brand_id: brandIdStr }));
                 const data = await response.json();
 
                 // --- 主要修改点在这里 ---

@@ -12,6 +12,7 @@ import {
     Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 
 export default function MyScreen() {
     const [userData, setUserData] = useState(null);
@@ -23,7 +24,7 @@ export default function MyScreen() {
         const fetchUserData = async () => {
             try {
                 setLoading(true);
-                const response = await fetch('http://119.28.108.105:8090/getbasicinfo?id=1000000');
+                const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_BASIC_INFO, { id: 1000000 }));
 
                 if (!response.ok) {
                     throw new Error(`HTTP错误! 状态: ${response.status}`);

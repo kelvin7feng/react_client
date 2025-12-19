@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
+import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -60,7 +61,7 @@ export default function SelectionScreen() {
     useEffect(() => {
         const fetchBrands = async () => {
             try {
-                const response = await fetch('http://119.28.108.105:8090/getbrands');
+                const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_BRANDS));
                 const data = await response.json();
 
                 if (data.code === 0 && Array.isArray(data.data)) {

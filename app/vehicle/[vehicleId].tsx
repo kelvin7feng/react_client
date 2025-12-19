@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -246,7 +247,8 @@ const VehicleDetailScreen = () => {
 
         const fetchVehicleDetail = async () => {
             try {
-                const response = await fetch(`http://119.28.108.105:8090/getvehicledetail?vehicle_id=${vehicleId}`);
+                const vehicleIdStr = Array.isArray(vehicleId) ? vehicleId[0] : vehicleId;
+                const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_VEHICLE_DETAIL, { vehicle_id: vehicleIdStr }));
                 const data = await response.json();
 
                 if (data.code === 0 && data.data) {

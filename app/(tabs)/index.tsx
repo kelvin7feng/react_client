@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
+import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 
 // 头部组件
 const Header = ({ title = "推荐" }) => {
@@ -101,7 +102,7 @@ export default function Index() {
         setLoading(true);
       }
 
-      const response = await fetch(`http://119.28.108.105:8090/recommendations?page=${pageNum}`);
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, { page: pageNum }));
 
       if (!response.ok) {
         throw new Error(`HTTP错误! 状态: ${response.status}`);
