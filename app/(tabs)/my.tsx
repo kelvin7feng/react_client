@@ -7,12 +7,12 @@ import {
     ScrollView,
     SafeAreaView,
     Platform,
-    StatusBar,
     ActivityIndicator,
     Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
+import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 
 export default function MyScreen() {
     const [userData, setUserData] = useState(null);
@@ -78,10 +78,10 @@ export default function MyScreen() {
     // 加载状态显示
     if (loading) {
         return (
-            <SafeAreaView style={styles.safeArea}>
-                <View style={styles.loadingContainer}>
+            <SafeAreaView style={CommonStyles.safeArea}>
+                <View style={CommonStyles.loadingContainer}>
                     <ActivityIndicator size="small" color="gray" />
-                    <Text style={styles.loadingText}>数据加载中</Text>
+                    <Text style={CommonStyles.loadingText}>数据加载中</Text>
                 </View>
             </SafeAreaView>
         );
@@ -90,11 +90,11 @@ export default function MyScreen() {
     // 错误状态显示
     if (error) {
         return (
-            <SafeAreaView style={styles.safeArea}>
-                <View style={styles.errorContainer}>
-                    <Ionicons name="alert-circle" size={50} color="#FF3B30" />
-                    <Text style={styles.errorText}>加载失败</Text>
-                    <Text style={styles.errorSubText}>{error}</Text>
+            <SafeAreaView style={CommonStyles.safeArea}>
+                <View style={CommonStyles.errorContainer}>
+                    <Ionicons name="alert-circle" size={50} color={Colors.error} />
+                    <Text style={CommonStyles.errorText}>加载失败</Text>
+                    <Text style={CommonStyles.errorSubText}>{error}</Text>
                 </View>
             </SafeAreaView>
         );
@@ -103,18 +103,18 @@ export default function MyScreen() {
     // 如果没有用户数据
     if (!userData) {
         return (
-            <SafeAreaView style={styles.safeArea}>
-                <View style={styles.errorContainer}>
-                    <Ionicons name="person" size={50} color="#8E8E93" />
-                    <Text style={styles.errorText}>未找到用户数据</Text>
+            <SafeAreaView style={CommonStyles.safeArea}>
+                <View style={CommonStyles.errorContainer}>
+                    <Ionicons name="person" size={50} color={Colors.textDisabled} />
+                    <Text style={CommonStyles.errorText}>未找到用户数据</Text>
                 </View>
             </SafeAreaView>
         );
     }
 
     return (
-        <SafeAreaView style={styles.safeArea}>
-            <ScrollView style={styles.container}>
+        <SafeAreaView style={CommonStyles.safeArea}>
+            <ScrollView style={CommonStyles.container}>
                 {/* 用户头像和名字部分 */}
                 <View style={styles.profileHeader}>
                     <Image
@@ -167,91 +167,45 @@ export default function MyScreen() {
 }
 
 const styles = StyleSheet.create({
-    safeArea: {
-        flex: 1,
-        backgroundColor: '#f8f9fa',
-        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-    },
-    container: {
-        flex: 1,
-        backgroundColor: '#f8f9fa',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        marginTop: 10,
-        fontSize: 16,
-        color: '#8E8E93',
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    errorText: {
-        marginTop: 10,
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#FF3B30',
-    },
-    errorSubText: {
-        marginTop: 5,
-        fontSize: 14,
-        color: '#8E8E93',
-        textAlign: 'center',
-    },
     profileHeader: {
         alignItems: 'center',
-        paddingVertical: 30,
-        paddingHorizontal: 20,
-        backgroundColor: 'white',
-        marginBottom: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
-        marginTop: Platform.OS === 'ios' ? 10 : 0,
+        paddingVertical: Spacing.xxxl,
+        paddingHorizontal: Spacing.xl,
+        backgroundColor: Colors.backgroundWhite,
+        marginBottom: Spacing.sm + 2,
+        ...CommonStyles.borderBottom,
+        marginTop: Platform.OS === 'ios' ? Spacing.sm + 2 : 0,
     },
     avatar: {
         width: 100,
         height: 100,
         borderRadius: 50,
-        marginBottom: 15,
+        marginBottom: Spacing.md + 3,
         borderWidth: 3,
-        borderColor: '#fff',
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        borderColor: Colors.white,
+        ...Shadows.large,
     },
     name: {
-        fontSize: 22,
+        fontSize: FontSize.xxl,
         fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 8,
+        color: Colors.textPrimary,
+        marginBottom: Spacing.sm,
     },
     signature: {
-        fontSize: 14,
-        color: '#666',
+        fontSize: FontSize.sm,
+        color: Colors.textSecondary,
         textAlign: 'center',
         lineHeight: 20,
     },
     infoSection: {
-        backgroundColor: 'white',
-        paddingHorizontal: 15,
+        backgroundColor: Colors.backgroundWhite,
+        paddingHorizontal: Spacing.md + 3,
     },
     infoItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 18,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        paddingVertical: Spacing.lg + 2,
+        ...CommonStyles.borderBottom,
     },
     infoIcon: {
         width: 40,
@@ -261,12 +215,12 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     infoLabel: {
-        fontSize: 14,
-        color: '#999',
-        marginBottom: 4,
+        fontSize: FontSize.sm,
+        color: Colors.textTertiary,
+        marginBottom: Spacing.xs,
     },
     infoValue: {
-        fontSize: 16,
-        color: '#333',
+        fontSize: FontSize.md,
+        color: Colors.textPrimary,
     },
 });

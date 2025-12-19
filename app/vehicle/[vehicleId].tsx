@@ -17,6 +17,7 @@ import {
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
+import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -289,18 +290,18 @@ const VehicleDetailScreen = () => {
 
     if (loading) {
         return (
-            <View style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#ff2442" />
-                <Text style={styles.loadingText}>正在加载车辆详情...</Text>
+            <View style={CommonStyles.centerContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={CommonStyles.loadingTextSmall}>正在加载车辆详情...</Text>
             </View>
         );
     }
 
     if (error || !vehicle) {
         return (
-            <View style={styles.centerContainer}>
-                <Ionicons name="warning-outline" size={60} color="#d9534f" />
-                <Text style={styles.errorText}>
+            <View style={CommonStyles.centerContainer}>
+                <Ionicons name="warning-outline" size={60} color={Colors.errorAlt} />
+                <Text style={CommonStyles.errorTextAlt}>
                     {error || '车辆信息不存在'}
                 </Text>
                 <TouchableOpacity
@@ -314,7 +315,7 @@ const VehicleDetailScreen = () => {
     }
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={CommonStyles.container}>
             <Stack.Screen
                 options={{
                     title: vehicle.model_name || '车辆详情',
@@ -322,7 +323,7 @@ const VehicleDetailScreen = () => {
                 }}
             />
 
-            <ScrollView style={styles.scrollView}>
+            <ScrollView style={CommonStyles.scrollView}>
                 {/* 图片展示组件 */}
                 <ImageGallery images={vehicle.images} />
 
@@ -345,84 +346,58 @@ const VehicleDetailScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f8f9fa',
-    },
-    centerContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    loadingText: {
-        marginTop: 10,
-        color: '#666',
-    },
-    errorText: {
-        color: '#d9534f',
-        fontSize: 16,
-        textAlign: 'center',
-        marginTop: 10,
-        marginBottom: 20,
-    },
     backButton: {
-        backgroundColor: '#ff2442',
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 8,
+        backgroundColor: Colors.primary,
+        paddingHorizontal: Spacing.xl,
+        paddingVertical: Spacing.sm + 2,
+        borderRadius: Spacing.sm,
     },
     backButtonText: {
-        color: '#fff',
-        fontSize: 16,
+        color: Colors.white,
+        fontSize: FontSize.md,
         fontWeight: '600',
-    },
-    scrollView: {
-        flex: 1,
     },
     mainImageContainer: {
         height: 250,
-        backgroundColor: '#fff',
+        backgroundColor: Colors.backgroundWhite,
     },
     mainImage: {
         width: '100%',
         height: '100%',
     },
     basicInfo: {
-        backgroundColor: '#fff',
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        backgroundColor: Colors.backgroundWhite,
+        padding: Spacing.lg,
+        ...CommonStyles.borderBottom,
     },
     modelName: {
-        fontSize: 20,
+        fontSize: FontSize.xl,
         fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 4,
+        color: Colors.textPrimary,
+        marginBottom: Spacing.xs,
     },
     modelYear: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 8,
+        fontSize: FontSize.sm,
+        color: Colors.textSecondary,
+        marginBottom: Spacing.sm,
     },
     price: {
-        fontSize: 14,
-        color: '#666',
+        fontSize: FontSize.sm,
+        color: Colors.textSecondary,
         fontWeight: 'normal',
-        marginBottom: 4,
+        marginBottom: Spacing.xs,
     },
     brandName: {
-        fontSize: 14,
-        color: '#999',
+        fontSize: FontSize.sm,
+        color: Colors.textTertiary,
     },
     // 图片展示样式
     imageGallery: {
-        backgroundColor: '#fff',
-        marginTop: 8,
+        backgroundColor: Colors.backgroundWhite,
+        marginTop: Spacing.sm,
     },
     typeScrollView: {
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        ...CommonStyles.borderBottom,
     },
     typeContainer: {
         flexGrow: 1,
@@ -443,7 +418,7 @@ const styles = StyleSheet.create({
         color: '#666',
     },
     activeTypeText: {
-        color: '#ff2442',
+        color: Colors.primary,
         fontWeight: '600',
     },
     carouselContainer: {
@@ -475,35 +450,35 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#ccc',
-        marginHorizontal: 4,
+        backgroundColor: Colors.borderDark,
+        marginHorizontal: Spacing.xs,
     },
     activeIndicator: {
-        backgroundColor: '#ff2442',
+        backgroundColor: Colors.primary,
         width: 12,
     },
     noImagesContainer: {
         height: 200,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#fff',
+        backgroundColor: Colors.backgroundWhite,
     },
     noImagesText: {
-        marginTop: 8,
-        color: '#999',
-        fontSize: 14,
+        marginTop: Spacing.sm,
+        color: Colors.textTertiary,
+        fontSize: FontSize.sm,
     },
     // 配置信息样式
     specsContainer: {
-        backgroundColor: '#fff',
-        marginTop: 8,
-        padding: 16,
+        backgroundColor: Colors.backgroundWhite,
+        marginTop: Spacing.sm,
+        padding: Spacing.lg,
     },
     specsTitle: {
-        fontSize: 18,
+        fontSize: FontSize.lg,
         fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 16,
+        color: Colors.textPrimary,
+        marginBottom: Spacing.lg,
     },
     specsList: {
         paddingBottom: 8,
@@ -515,19 +490,19 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     specItemEven: {
-        backgroundColor: '#fafafa',
+        backgroundColor: Colors.backgroundLightGray,
     },
     specItemOdd: {
-        backgroundColor: '#fff',
+        backgroundColor: Colors.backgroundWhite,
     },
     specLabel: {
-        fontSize: 12,
-        color: '#666',
-        marginBottom: 4,
+        fontSize: FontSize.xs,
+        color: Colors.textSecondary,
+        marginBottom: Spacing.xs,
     },
     specValue: {
-        fontSize: 14,
-        color: '#333',
+        fontSize: FontSize.sm,
+        color: Colors.textPrimary,
         fontWeight: '500',
     },
     bottomSpacer: {

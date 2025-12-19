@@ -16,6 +16,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
+import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 
 const { width, height } = Dimensions.get('window');
 
@@ -31,7 +32,7 @@ const BrandImage = ({ uri, style }) => {
 
     if (imageError || !uri) {
         return (
-            <View style={[style, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={[style, { backgroundColor: Colors.backgroundGray, justifyContent: 'center', alignItems: 'center' }]}>
                 <Ionicons name="image-outline" size={20} color="#ccc" />
             </View>
         );
@@ -249,19 +250,19 @@ export default function SelectionScreen() {
 
     if (loading) {
         return (
-            <SafeAreaView style={styles.container}>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#ff2442" />
-                    <Text style={styles.loadingText}>加载中...</Text>
+            <SafeAreaView style={CommonStyles.container}>
+                <View style={CommonStyles.loadingContainer}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <Text style={CommonStyles.loadingTextSmall}>加载中...</Text>
                 </View>
             </SafeAreaView>
         );
     }
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={CommonStyles.container}>
             <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+                <Ionicons name="search" size={20} color={Colors.textTertiary} style={styles.searchIcon} />
                 <TextInput
                     style={styles.searchInput}
                     placeholder="搜索品牌"
@@ -295,36 +296,19 @@ export default function SelectionScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f8f9fa',
-    },
     content: {
         flex: 1,
         position: 'relative',
     },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        marginTop: 10,
-        color: '#666',
-    },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#fff',
-        marginHorizontal: 16,
-        marginVertical: 16,
-        paddingHorizontal: 12,
-        borderRadius: 8,
-        elevation: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
+        backgroundColor: Colors.backgroundWhite,
+        marginHorizontal: Spacing.lg,
+        marginVertical: Spacing.lg,
+        paddingHorizontal: Spacing.md,
+        borderRadius: Spacing.sm,
+        ...Shadows.small,
     },
     searchIcon: {
         marginRight: 8,
@@ -332,15 +316,13 @@ const styles = StyleSheet.create({
     searchInput: {
         flex: 1,
         height: 44,
-        fontSize: 16,
+        fontSize: FontSize.md,
     },
     sectionTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginHorizontal: 16,
-        marginTop: 16,
-        marginBottom: 12,
-        color: '#333',
+        ...CommonStyles.textSectionTitle,
+        marginHorizontal: Spacing.lg,
+        marginTop: Spacing.lg,
+        marginBottom: Spacing.md,
     },
     headerListWrapper: {
         marginBottom: 2,
@@ -352,17 +334,13 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
     },
     headerItem: {
-        width: (width - 32 - 48) / 4, // 屏幕宽度减去左右边距和项目间距
+        width: (width - Spacing.lg * 2 - 48) / 4, // 屏幕宽度减去左右边距和项目间距
         alignItems: 'center',
-        backgroundColor: '#fff',
-        borderRadius: 8,
-        padding: 12,
-        marginBottom: 12,
-        elevation: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
+        backgroundColor: Colors.backgroundWhite,
+        borderRadius: Spacing.sm,
+        padding: Spacing.md,
+        marginBottom: Spacing.md,
+        ...Shadows.small,
     },
     brandLogo: {
         width: 40,
@@ -371,19 +349,19 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     brandName: {
-        fontSize: 12,
-        color: '#333',
+        fontSize: FontSize.xs,
+        color: Colors.textPrimary,
         textAlign: 'center',
     },
     selectedPriceFilter: {
-        backgroundColor: '#ff2442',
+        backgroundColor: Colors.primary,
     },
     priceFilterText: {
-        color: '#666',
-        fontSize: 14,
+        color: Colors.textSecondary,
+        fontSize: FontSize.sm,
     },
     selectedPriceFilterText: {
-        color: '#fff',
+        color: Colors.white,
     },
     brandListContainer: {
         flex: 1,
@@ -392,22 +370,20 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     sectionHeader: {
-        backgroundColor: '#f0f0f0',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        backgroundColor: Colors.backgroundGray,
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.sm,
     },
     sectionHeaderText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#666',
+        ...CommonStyles.textSectionTitle,
+        color: Colors.textSecondary,
     },
     brandItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#fff',
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        backgroundColor: Colors.backgroundWhite,
+        padding: Spacing.lg,
+        ...CommonStyles.borderBottom,
     },
     brandItemLogo: {
         width: 40,
@@ -419,13 +395,13 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     brandItemName: {
-        fontSize: 16,
-        color: '#333',
-        marginBottom: 4,
+        fontSize: FontSize.md,
+        color: Colors.textPrimary,
+        marginBottom: Spacing.xs,
     },
     brandEnglishName: {
-        fontSize: 12,
-        color: '#999',
+        fontSize: FontSize.xs,
+        color: Colors.textTertiary,
     },
     alphabetNav: {
         position: 'absolute',
@@ -442,15 +418,15 @@ const styles = StyleSheet.create({
         marginVertical: 1,
     },
     activeLetterButton: {
-        backgroundColor: '#ff2442',
+        backgroundColor: Colors.primary,
         borderRadius: 10,
     },
     letterText: {
-        fontSize: 12,
-        color: '#999',
+        fontSize: FontSize.xs,
+        color: Colors.textTertiary,
     },
     activeLetterText: {
-        color: '#fff',
+        color: Colors.white,
         fontWeight: 'bold',
     },
 });

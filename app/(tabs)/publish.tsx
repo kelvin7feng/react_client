@@ -6,8 +6,6 @@ import {
     TouchableOpacity,
     ScrollView,
     SafeAreaView,
-    Platform,
-    StatusBar,
     Image,
     StyleSheet,
     FlatList,
@@ -17,6 +15,7 @@ import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 
 export default function PublishScreen() {
     const router = useRouter();
@@ -68,8 +67,8 @@ export default function PublishScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            <SafeAreaView style={styles.safeArea}>
+        <View style={CommonStyles.containerWhite}>
+            <SafeAreaView style={CommonStyles.safeAreaWhite}>
                 <Stack.Screen
                     options={{
                         title: '',
@@ -81,7 +80,7 @@ export default function PublishScreen() {
                     }}
                 />
 
-                <ScrollView style={styles.scrollView}>
+                <ScrollView style={CommonStyles.scrollView}>
                     {/* 图片选择区域 */}
                     <View style={styles.imageSection}>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -153,18 +152,18 @@ export default function PublishScreen() {
                     </View>
 
                     {/* 分割线 */}
-                    <View style={styles.divider} />
+                    <View style={CommonStyles.divider} />
 
                     {/* 位置选择 */}
                     <TouchableOpacity style={styles.locationSection}>
-                        <Ionicons name="location-outline" size={20} color="#666" />
+                        <Ionicons name="location-outline" size={20} color={Colors.textSecondary} />
                         <Text style={styles.locationText}>
                             {location || '添加位置'}
                         </Text>
                     </TouchableOpacity>
 
                     {/* 分割线 */}
-                    <View style={styles.divider} />
+                    <View style={CommonStyles.divider} />
                 </ScrollView>
 
                 {/* 底部按钮 */}
@@ -183,31 +182,16 @@ export default function PublishScreen() {
 }
 
 const styles = StyleSheet.create({
-    safeArea: {
-        flex: 1,
-        backgroundColor: '#f8f9fa',
-        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-    },
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
-    scrollView: {
-        flex: 1,
-    },
     section: {
-        padding: 16,
+        padding: Spacing.lg,
     },
     imageSection: {
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        padding: Spacing.lg,
+        ...CommonStyles.borderBottom,
     },
     sectionTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 12,
-        color: '#333',
+        ...CommonStyles.textSectionTitle,
+        marginBottom: Spacing.md,
     },
     imageList: {
         flexDirection: 'row',
@@ -220,38 +204,37 @@ const styles = StyleSheet.create({
     image: {
         width: 80,
         height: 80,
-        borderRadius: 8,
+        borderRadius: Spacing.sm,
     },
     removeButton: {
         position: 'absolute',
         top: -5,
         right: -5,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: Colors.overlay,
         borderRadius: 10,
     },
     addButton: {
         width: 80,
         height: 80,
-        borderRadius: 8,
+        borderRadius: Spacing.sm,
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: Colors.borderDark,
         borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f9f9f9',
+        backgroundColor: Colors.backgroundLightGray,
     },
     inputSection: {
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        padding: Spacing.lg,
+        ...CommonStyles.borderBottom,
     },
     titleInput: {
-        fontSize: 18,
+        fontSize: FontSize.lg,
         fontWeight: '600',
         padding: 0,
     },
     contentInput: {
-        fontSize: 16,
+        fontSize: FontSize.md,
         padding: 0,
         minHeight: 100,
         textAlignVertical: 'top',
@@ -260,66 +243,61 @@ const styles = StyleSheet.create({
         marginHorizontal: -4,
     },
     topicButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm - 2,
         borderRadius: 16,
-        backgroundColor: '#f0f0f0',
-        marginRight: 8,
+        backgroundColor: Colors.backgroundGray,
+        marginRight: Spacing.sm,
     },
     selectedTopicButton: {
-        backgroundColor: '#ff2442',
+        backgroundColor: Colors.primary,
     },
     topicText: {
-        color: '#666',
-        fontSize: 14,
+        color: Colors.textSecondary,
+        fontSize: FontSize.sm,
     },
     selectedTopicText: {
-        color: '#fff',
-    },
-    divider: {
-        height: 8,
-        backgroundColor: '#f0f0f0',
+        color: Colors.white,
     },
     locationSection: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
+        padding: Spacing.lg,
     },
     locationText: {
-        marginLeft: 8,
-        color: '#666',
+        marginLeft: Spacing.sm,
+        color: Colors.textSecondary,
     },
     footer: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
-        backgroundColor: '#fff',
+        padding: Spacing.lg,
+        ...CommonStyles.borderTop,
+        backgroundColor: Colors.backgroundWhite,
     },
     draftButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.sm + 2,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: '#ddd',
-        marginRight: 12,
+        borderColor: Colors.borderDark,
+        marginRight: Spacing.md,
     },
     draftText: {
-        marginLeft: 6,
-        color: '#666',
+        marginLeft: Spacing.sm - 2,
+        color: Colors.textSecondary,
     },
     publishButton: {
         flex: 1,
-        backgroundColor: '#ff2442',
-        paddingVertical: 12,
+        backgroundColor: Colors.primary,
+        paddingVertical: Spacing.md,
         borderRadius: 20,
         alignItems: 'center',
     },
     publishText: {
-        color: '#fff',
+        color: Colors.white,
         fontWeight: '600',
     },
 });

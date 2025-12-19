@@ -13,6 +13,7 @@ import {
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
+import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 
 // 可复用的图片组件，处理加载失败的情况
 const VehicleImage = ({ uri, style }) => {
@@ -114,23 +115,23 @@ const BrandVehiclesScreen = () => {
 
     if (loading) {
         return (
-            <View style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#ff2442" />
-                <Text style={styles.loadingText}>正在加载车型...</Text>
+            <View style={CommonStyles.centerContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={CommonStyles.loadingTextSmall}>正在加载车型...</Text>
             </View>
         );
     }
 
     if (error) {
         return (
-            <View style={styles.centerContainer}>
-                <Text style={styles.errorText}>加载失败: {error}</Text>
+            <View style={CommonStyles.centerContainer}>
+                <Text style={CommonStyles.errorTextAlt}>加载失败: {error}</Text>
             </View>
         );
     }
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={CommonStyles.container}>
             <Stack.Screen
                 options={{
                     title: brandName ? String(brandName) : '品牌车型',
@@ -143,8 +144,8 @@ const BrandVehiclesScreen = () => {
                 keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={styles.listContent}
                 ListEmptyComponent={
-                    <View style={styles.centerContainer}>
-                        <Text style={styles.emptyText}>该品牌下暂无车型数据</Text>
+                    <View style={CommonStyles.centerContainer}>
+                        <Text style={CommonStyles.emptyText}>该品牌下暂无车型数据</Text>
                     </View>
                 }
             />
@@ -153,52 +154,25 @@ const BrandVehiclesScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f8f9fa',
-    },
-    centerContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    loadingText: {
-        marginTop: 10,
-        color: '#666',
-    },
-    errorText: {
-        color: '#d9534f',
-        fontSize: 16,
-        textAlign: 'center',
-    },
-    emptyText: {
-        color: '#999',
-        fontSize: 16,
-    },
     listContent: {
-        padding: 16,
+        padding: Spacing.lg,
     },
     itemContainer: {
         flexDirection: 'row',
-        backgroundColor: '#fff',
-        borderRadius: 8,
-        padding: 12,
-        marginBottom: 16,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
+        backgroundColor: Colors.backgroundWhite,
+        borderRadius: Spacing.sm,
+        padding: Spacing.md,
+        marginBottom: Spacing.lg,
+        ...Shadows.medium,
     },
     itemImage: {
         width: 100,
         height: 100,
-        borderRadius: 8,
-        marginRight: 12,
+        borderRadius: Spacing.sm,
+        marginRight: Spacing.md,
     },
     imagePlaceholder: {
-        backgroundColor: '#f0f0f0',
+        backgroundColor: Colors.backgroundGray,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -207,14 +181,14 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     itemName: {
-        fontSize: 16,
+        fontSize: FontSize.md,
         fontWeight: '600',
-        color: '#333',
-        marginBottom: 8,
+        color: Colors.textPrimary,
+        marginBottom: Spacing.sm,
     },
     itemPrice: {
-        fontSize: 14,
-        color: '#666',
+        fontSize: FontSize.sm,
+        color: Colors.textSecondary,
         fontWeight: 'normal',
     }
 });

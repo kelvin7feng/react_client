@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
+import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 
 // 头部组件
 const Header = ({ title = "推荐" }) => {
@@ -33,9 +34,9 @@ const Header = ({ title = "推荐" }) => {
 // 加载状态组件
 const LoadingView = () => {
   return (
-    <View style={styles.loadingContainer}>
+    <View style={CommonStyles.loadingContainer}>
       <ActivityIndicator size="small" color="gray" />
-      <Text style={styles.loadingText}>数据加载中...</Text>
+      <Text style={CommonStyles.loadingText}>数据加载中...</Text>
     </View>
   );
 };
@@ -43,12 +44,12 @@ const LoadingView = () => {
 // 错误状态组件 - 添加了重试功能
 const ErrorView = ({ error, onRetry }) => {
   return (
-    <View style={styles.errorContainer}>
-      <Ionicons name="alert-circle" size={50} color="#FF3B30" />
-      <Text style={styles.errorText}>加载失败</Text>
-      <Text style={styles.errorSubText}>{error}</Text>
-      <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
-        <Text style={styles.retryButtonText}>点击重试</Text>
+    <View style={CommonStyles.errorContainer}>
+      <Ionicons name="alert-circle" size={50} color={Colors.error} />
+      <Text style={CommonStyles.errorText}>加载失败</Text>
+      <Text style={CommonStyles.errorSubText}>{error}</Text>
+      <TouchableOpacity style={CommonStyles.retryButton} onPress={onRetry}>
+        <Text style={CommonStyles.retryButtonText}>点击重试</Text>
       </TouchableOpacity>
     </View>
   );
@@ -184,7 +185,7 @@ export default function Index() {
       <Header />
 
       <ScrollView
-        style={styles.scrollView}
+        style={CommonStyles.scrollView}
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
@@ -200,16 +201,16 @@ export default function Index() {
 
         {/* 加载更多指示器 */}
         {loadingMore && (
-          <View style={styles.loadingMoreContainer}>
-            <ActivityIndicator size="small" color="#007AFF" />
-            <Text style={styles.loadingMoreText}>加载更多...</Text>
+          <View style={CommonStyles.loadingMoreContainer}>
+            <ActivityIndicator size="small" color={Colors.primaryBlue} />
+            <Text style={CommonStyles.loadingMoreText}>加载更多...</Text>
           </View>
         )}
 
         {/* 没有更多数据的提示 */}
         {!hasMore && (
-          <View style={styles.noMoreContainer}>
-            <Text style={styles.noMoreText}>没有更多数据了</Text>
+          <View style={CommonStyles.noMoreContainer}>
+            <Text style={CommonStyles.noMoreText}>没有更多数据了</Text>
           </View>
         )}
       </ScrollView>
@@ -219,97 +220,46 @@ export default function Index() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
+    ...CommonStyles.container,
     paddingTop: 50,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 14,
-    backgroundColor: '#f8f9fa',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingVertical: Spacing.sm + 4,
+    backgroundColor: Colors.background,
+    ...CommonStyles.borderBottom,
+    borderBottomColor: Colors.borderLight,
     height: 50,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: FontSize.xl,
     textAlign: 'center',
     flex: 1,
   },
   menuButton: {
     position: 'absolute',
-    left: 10,
+    left: Spacing.sm + 2,
     top: 13,
   },
   searchButton: {
     position: 'absolute',
-    right: 10,
+    right: Spacing.sm + 2,
     top: 13,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#8E8E93',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    marginTop: 10,
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FF3B30',
-  },
-  errorSubText: {
-    marginTop: 5,
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 20,
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  scrollView: {
-    flex: 1
   },
   columnsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 4,
-    marginTop: 5
+    paddingHorizontal: Spacing.xs,
+    marginTop: 5,
   },
   column: {
     flex: 1,
-    marginHorizontal: 3
+    marginHorizontal: 3,
   },
   item: {
-    backgroundColor: 'white',
-    borderRadius: 6,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-    overflow: 'hidden',
+    ...CommonStyles.cardMedium,
+    borderRadius: Spacing.sm - 2,
   },
   image: {
     width: '100%',
@@ -318,51 +268,32 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   content: {
-    padding: 8
+    padding: Spacing.sm,
   },
   title: {
-    fontSize: 14,
+    fontSize: FontSize.sm,
     fontWeight: '600',
-    marginBottom: 6,
-    color: '#333',
+    marginBottom: Spacing.sm - 2,
+    color: Colors.textPrimary,
     lineHeight: 18,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   author: {
-    fontSize: 12,
-    color: '#666'
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
   },
   likesContainer: {
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2
+    borderRadius: Spacing.sm,
+    paddingHorizontal: Spacing.sm - 2,
+    paddingVertical: 2,
   },
   likes: {
-    fontSize: 12,
-    color: 'black',
-    fontWeight: '300'
+    fontSize: FontSize.xs,
+    color: Colors.black,
+    fontWeight: '300',
   },
-  loadingMoreContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 10,
-  },
-  loadingMoreText: {
-    marginLeft: 10,
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  noMoreContainer: {
-    padding: 10,
-    alignItems: 'center',
-  },
-  noMoreText: {
-    fontSize: 14,
-    color: '#8E8E93',
-  }
 });
