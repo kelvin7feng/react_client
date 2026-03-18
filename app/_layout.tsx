@@ -30,6 +30,11 @@ export default function RootLayout() {
           title: '车辆详情',
           headerBackTitle: '返回',
       }} />
+      <Stack.Screen
+        name="article/[articleId]"
+        options={{
+          headerShown: false,
+      }} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );

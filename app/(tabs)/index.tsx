@@ -7,16 +7,19 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   NativeSyntheticEvent,
   NativeScrollEvent
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
+import { EventBus, Events, LikeChangedPayload } from '../../config/events';
+import { API_BASE_URL } from '../../config/api';
+
+const CURRENT_USER_ID = 1000000;
 
 // 头部组件
 const Header = ({ title = "推荐" }) => {
@@ -58,24 +61,26 @@ const ErrorView = ({ error, onRetry }) => {
 };
 
 // 瀑布流项组件
-const WaterfallItem = ({ item }) => {
+const WaterfallItem = ({ item, onPress, onLike }) => {
   return (
-    <View style={styles.item}>
+    <TouchableOpacity style={styles.item} activeOpacity={0.8} onPress={() => onPress(item.id)}>
       <Image source={{ uri: item.image }} style={styles.image} />
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
         <View style={styles.footer}>
           <Text style={styles.author}>{item.author}</Text>
-          <View style={styles.likesContainer}>
-            <Text style={styles.likes}>♡ {item.likes}</Text>
-          </View>
+          <TouchableOpacity style={styles.likesContainer} onPress={(e) => { e.stopPropagation(); onLike(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name={item.liked ? 'heart' : 'heart-outline'} size={14} color={item.liked ? Colors.primary : Colors.textSecondary} />
+            <Text style={[styles.likes, item.liked && { color: Colors.primary }]}>{item.likes > 0 ? ` ${item.likes}` : ''}</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
 export default function Index() {
+  const router = useRouter();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -86,7 +91,6 @@ export default function Index() {
 
   const isLoadingRef = useRef(false);
   const lastLoadedPageRef = useRef(0);
-  const isFirstLoad = useRef(true);
 
   const fetchRecommendations = useCallback(async (pageNum = 1, append = false) => {
     if (isLoadingRef.current || (append && lastLoadedPageRef.current >= pageNum)) {
@@ -104,7 +108,7 @@ export default function Index() {
         setLoading(true);
       }
 
-      const response = await fetch(buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, { page: pageNum }));
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, { page: pageNum, user_id: CURRENT_USER_ID }));
 
       if (!response.ok) {
         throw new Error(`HTTP错误! 状态: ${response.status}`);
@@ -144,20 +148,49 @@ export default function Index() {
     fetchRecommendations(1, false);
   }, [fetchRecommendations]);
 
-  // 页面聚焦时刷新（从发布页返回等场景）
-  useFocusEffect(
-    useCallback(() => {
-      if (isFirstLoad.current) {
-        isFirstLoad.current = false;
-        fetchRecommendations(1, false);
-        return;
+  const handleCardLike = useCallback(async (article: any) => {
+    const newLiked = !article.liked;
+    const newCount = newLiked ? article.likes + 1 : Math.max(article.likes - 1, 0);
+
+    setItems(prev => prev.map(it =>
+      it.id === article.id ? { ...it, liked: newLiked, likes: newCount } : it
+    ));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_LIKE}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ article_id: article.id, user_id: CURRENT_USER_ID }),
+      });
+      const result = await response.json();
+      if (result.code === 0) {
+        EventBus.emit(Events.ARTICLE_LIKE_CHANGED, {
+          articleId: article.id,
+          liked: newLiked,
+          likeCount: newCount,
+        } as LikeChangedPayload);
+      } else {
+        setItems(prev => prev.map(it =>
+          it.id === article.id ? { ...it, liked: article.liked, likes: article.likes } : it
+        ));
       }
-      lastLoadedPageRef.current = 0;
-      setPage(1);
-      setHasMore(true);
-      fetchRecommendations(1, false);
-    }, [fetchRecommendations])
-  );
+    } catch {
+      setItems(prev => prev.map(it =>
+        it.id === article.id ? { ...it, liked: article.liked, likes: article.likes } : it
+      ));
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRecommendations(1, false);
+
+    const off = EventBus.on(Events.ARTICLE_LIKE_CHANGED, ({ articleId, liked, likeCount }: LikeChangedPayload) => {
+      setItems(prev => prev.map(item =>
+        item.id === articleId ? { ...item, likes: likeCount, liked } : item
+      ));
+    });
+    return off;
+  }, []);
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -222,7 +255,7 @@ export default function Index() {
           {columns.map((column, columnIndex) => (
             <View key={columnIndex} style={styles.column}>
               {column.map(item => (
-                <WaterfallItem key={item.id} item={item} />
+                <WaterfallItem key={item.id} item={item} onPress={(id) => router.push(`/article/${id}`)} onLike={handleCardLike} />
               ))}
             </View>
           ))}
@@ -316,13 +349,15 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   likesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: Spacing.sm,
     paddingHorizontal: Spacing.sm - 2,
     paddingVertical: 2,
   },
   likes: {
     fontSize: FontSize.xs,
-    color: Colors.black,
+    color: Colors.textSecondary,
     fontWeight: '300',
   },
 });

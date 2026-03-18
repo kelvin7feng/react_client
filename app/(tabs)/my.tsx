@@ -10,15 +10,16 @@ import {
     ActivityIndicator,
     Alert,
     TouchableOpacity,
-    Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
+import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CURRENT_USER_ID = 1000000;
+
 
 const GenderIcon = ({ gender }: { gender: number }) => {
     if (gender === 1) {
@@ -57,30 +58,36 @@ const EmptyTabContent = ({ label }: { label: string }) => (
     </View>
 );
 
-const NoteItem = ({ item }: { item: any }) => {
-    const imageUri = item.image && item.image.startsWith('/')
-        ? `${API_BASE_URL}${item.image}`
-        : item.image;
-
-    return (
-        <View style={styles.noteItem}>
-            {imageUri ? (
-                <Image source={{ uri: imageUri }} style={styles.noteImage} />
-            ) : (
-                <View style={[styles.noteImage, styles.noteImagePlaceholder]}>
-                    <Ionicons name="image-outline" size={24} color={Colors.borderDark} />
-                </View>
-            )}
+const NoteItem = ({ item, onPress, onLike }: { item: any; onPress: (id: number) => void; onLike: (item: any) => void }) => (
+    <TouchableOpacity style={styles.noteItem} activeOpacity={0.8} onPress={() => onPress(item.id)}>
+        {item.image ? (
+            <Image source={{ uri: item.image }} style={styles.noteImage} />
+        ) : (
+            <View style={[styles.noteImage, styles.noteImagePlaceholder]}>
+                <Ionicons name="image-outline" size={24} color={Colors.borderDark} />
+            </View>
+        )}
+        <View style={styles.noteContent}>
             <Text style={styles.noteTitle} numberOfLines={2}>{item.title}</Text>
             <View style={styles.noteFooter}>
-                <Ionicons name="heart-outline" size={12} color={Colors.textTertiary} />
-                <Text style={styles.noteFooterText}>{item.likes || 0}</Text>
+                <Text style={styles.noteAuthor} numberOfLines={1}>{item.author}</Text>
+                <TouchableOpacity
+                    style={styles.noteLikeBtn}
+                    onPress={(e) => { e.stopPropagation(); onLike(item); }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                    <Ionicons name={item.liked ? 'heart' : 'heart-outline'} size={14} color={item.liked ? Colors.primary : Colors.textSecondary} />
+                    <Text style={[styles.noteLikeText, item.liked && { color: Colors.primary }]}>
+                        {item.likes > 0 ? ` ${item.likes}` : ''}
+                    </Text>
+                </TouchableOpacity>
             </View>
         </View>
-    );
-};
+    </TouchableOpacity>
+);
 
 export default function MyScreen() {
+    const router = useRouter();
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -110,16 +117,58 @@ export default function MyScreen() {
     const fetchMyNotes = useCallback(async () => {
         setNotesLoading(true);
         try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, { page: 1, author_id: 1000000 }));
+            const response = await fetch(buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, {
+                page: 1, author_id: CURRENT_USER_ID, user_id: CURRENT_USER_ID,
+            }));
             if (response.ok) {
                 const data = await response.json();
                 setMyNotes(Array.isArray(data) ? data : []);
             }
-        } catch (err) {
+        } catch {
             // 静默处理
         } finally {
             setNotesLoading(false);
         }
+    }, []);
+
+    const handleNoteLike = useCallback(async (article: any) => {
+        const newLiked = !article.liked;
+        const newCount = newLiked ? article.likes + 1 : Math.max(article.likes - 1, 0);
+
+        setMyNotes(prev => prev.map(it =>
+            it.id === article.id ? { ...it, liked: newLiked, likes: newCount } : it
+        ));
+
+        try {
+            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_LIKE}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ article_id: article.id, user_id: CURRENT_USER_ID }),
+            });
+            const result = await response.json();
+            if (result.code === 0) {
+                EventBus.emit(Events.ARTICLE_LIKE_CHANGED, {
+                    articleId: article.id, liked: newLiked, likeCount: newCount,
+                } as LikeChangedPayload);
+            } else {
+                setMyNotes(prev => prev.map(it =>
+                    it.id === article.id ? { ...it, liked: article.liked, likes: article.likes } : it
+                ));
+            }
+        } catch {
+            setMyNotes(prev => prev.map(it =>
+                it.id === article.id ? { ...it, liked: article.liked, likes: article.likes } : it
+            ));
+        }
+    }, []);
+
+    useEffect(() => {
+        const off = EventBus.on(Events.ARTICLE_LIKE_CHANGED, ({ articleId, liked, likeCount }: LikeChangedPayload) => {
+            setMyNotes(prev => prev.map(item =>
+                item.id === articleId ? { ...item, likes: likeCount, liked } : item
+            ));
+        });
+        return off;
     }, []);
 
     useFocusEffect(
@@ -177,10 +226,21 @@ export default function MyScreen() {
                 if (myNotes.length === 0) {
                     return <EmptyTabContent label="笔记" />;
                 }
+                const cols: any[][] = [[], []];
+                myNotes.forEach((item: any, i: number) => cols[i % 2].push(item));
                 return (
-                    <View style={styles.notesGrid}>
-                        {myNotes.map((item: any) => (
-                            <NoteItem key={item.id} item={item} />
+                    <View style={styles.notesColumns}>
+                        {cols.map((col, ci) => (
+                            <View key={ci} style={styles.notesColumn}>
+                                {col.map((item: any) => (
+                                    <NoteItem
+                                        key={item.id}
+                                        item={item}
+                                        onPress={(id) => router.push(`/article/${id}`)}
+                                        onLike={handleNoteLike}
+                                    />
+                                ))}
+                            </View>
                         ))}
                     </View>
                 );
@@ -255,9 +315,6 @@ export default function MyScreen() {
         </SafeAreaView>
     );
 }
-
-const NOTE_GAP = 6;
-const NOTE_WIDTH = (SCREEN_WIDTH - Spacing.sm * 2 - NOTE_GAP) / 2;
 
 const styles = StyleSheet.create({
     safeArea: {
@@ -382,19 +439,21 @@ const styles = StyleSheet.create({
         fontSize: FontSize.sm,
         color: Colors.textTertiary,
     },
-    notesGrid: {
+    notesColumns: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        padding: Spacing.sm,
-        gap: NOTE_GAP,
+        paddingHorizontal: Spacing.xs,
+        paddingTop: 5,
+    },
+    notesColumn: {
+        flex: 1,
+        marginHorizontal: 3,
     },
     noteItem: {
-        width: NOTE_WIDTH,
         backgroundColor: Colors.backgroundWhite,
-        borderRadius: Spacing.sm,
+        borderRadius: Spacing.sm - 2,
+        marginBottom: Spacing.sm,
+        ...Shadows.medium,
         overflow: 'hidden',
-        ...Shadows.small,
-        marginBottom: 2,
     },
     noteImage: {
         width: '100%',
@@ -405,23 +464,36 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    noteContent: {
+        padding: Spacing.sm,
+    },
     noteTitle: {
         fontSize: FontSize.sm,
-        fontWeight: '500',
+        fontWeight: '600',
         color: Colors.textPrimary,
-        paddingHorizontal: Spacing.sm,
-        paddingTop: Spacing.sm,
         lineHeight: 18,
+        marginBottom: Spacing.sm - 2,
     },
     noteFooter: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: Spacing.sm,
-        paddingVertical: Spacing.sm,
     },
-    noteFooterText: {
+    noteAuthor: {
         fontSize: FontSize.xs,
-        color: Colors.textTertiary,
-        marginLeft: 3,
+        color: Colors.textSecondary,
+        flex: 1,
+    },
+    noteLikeBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: Spacing.sm,
+        paddingHorizontal: Spacing.sm - 2,
+        paddingVertical: 2,
+    },
+    noteLikeText: {
+        fontSize: FontSize.xs,
+        color: Colors.textSecondary,
+        fontWeight: '300',
     },
 });

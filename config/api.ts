@@ -23,6 +23,10 @@ export const API_ENDPOINTS = {
   
   // 文章相关
   PUBLISH_ARTICLE: '/publish',
+  GET_ARTICLE_DETAIL: '/getarticledetail',
+  GET_COMMENTS: '/getcomments',
+  CREATE_COMMENT: '/createcomment',
+  TOGGLE_LIKE: '/togglelike',
 } as const;
 
 /**
