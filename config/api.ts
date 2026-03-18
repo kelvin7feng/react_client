@@ -4,7 +4,7 @@
  */
 
 // API 基础 URL
-export const API_BASE_URL = 'http://119.28.108.105:8090';
+export const API_BASE_URL = 'http://43.163.75.18:8090';
 
 // API 端点
 export const API_ENDPOINTS = {
@@ -20,6 +20,9 @@ export const API_ENDPOINTS = {
   
   // 车辆相关
   GET_VEHICLE_DETAIL: '/getvehicledetail',
+  
+  // 文章相关
+  PUBLISH_ARTICLE: '/publish',
 } as const;
 
 /**

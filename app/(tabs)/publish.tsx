@@ -8,14 +8,16 @@ import {
     SafeAreaView,
     Image,
     StyleSheet,
-    FlatList,
     Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
+import { CommonStyles, Colors, Spacing, FontSize } from '../../config/styles';
+import { API_BASE_URL, API_ENDPOINTS } from '../../config/api';
 
 export default function PublishScreen() {
     const router = useRouter();
@@ -24,6 +26,16 @@ export default function PublishScreen() {
     const [content, setContent] = useState('');
     const [selectedTopic, setSelectedTopic] = useState('');
     const [location, setLocation] = useState('');
+    const [locationDetail, setLocationDetail] = useState<{
+        province: string;
+        city: string;
+        district: string;
+        address: string;
+        latitude: number;
+        longitude: number;
+    } | null>(null);
+    const [isPublishing, setIsPublishing] = useState(false);
+    const [isLocating, setIsLocating] = useState(false);
 
     const topics = [
         '摩托车改装', '骑行装备', '机车摄影', '赛道日',
@@ -40,7 +52,7 @@ export default function PublishScreen() {
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
             aspect: [1, 1],
-            quality: 1,
+            quality: 0.8,
         });
 
         if (!result.canceled) {
@@ -54,14 +66,117 @@ export default function PublishScreen() {
         setSelectedImages(newImages);
     };
 
-    const handlePublish = () => {
-        // 这里处理发布逻辑
-        Alert.alert('发布成功', '您的内容已成功发布');
-        router.back();
+    const handleGetLocation = async () => {
+        setIsLocating(true);
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('提示', '需要位置权限才能添加定位');
+                return;
+            }
+
+            const loc = await Location.getCurrentPositionAsync({});
+            const [geocode] = await Location.reverseGeocodeAsync({
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude,
+            });
+
+            if (geocode) {
+                const detail = {
+                    province: geocode.region || '',
+                    city: geocode.city || '',
+                    district: geocode.district || '',
+                    address: geocode.name || geocode.street || '',
+                    latitude: loc.coords.latitude,
+                    longitude: loc.coords.longitude,
+                };
+                setLocationDetail(detail);
+                const displayLocation = [detail.city, detail.district].filter(Boolean).join(' ');
+                setLocation(displayLocation || '未知位置');
+            }
+        } catch (error) {
+            Alert.alert('定位失败', '无法获取当前位置，请稍后重试');
+        } finally {
+            setIsLocating(false);
+        }
+    };
+
+    const handlePublish = async () => {
+        if (!title.trim()) {
+            Alert.alert('提示', '请输入标题');
+            return;
+        }
+        if (!content.trim()) {
+            Alert.alert('提示', '请输入内容');
+            return;
+        }
+        if (selectedImages.length === 0) {
+            Alert.alert('提示', '请至少选择一张图片');
+            return;
+        }
+
+        setIsPublishing(true);
+
+        try {
+            const formData = new FormData();
+            formData.append('title', title.trim());
+            formData.append('content', content.trim());
+            formData.append('author_id', '1000000');
+
+            if (selectedTopic) {
+                formData.append('topic', selectedTopic);
+            }
+
+            if (locationDetail) {
+                formData.append('location_province', locationDetail.province);
+                formData.append('location_city', locationDetail.city);
+                formData.append('location_district', locationDetail.district);
+                formData.append('location_address', locationDetail.address);
+                formData.append('location_latitude', String(locationDetail.latitude));
+                formData.append('location_longitude', String(locationDetail.longitude));
+            }
+
+            for (let i = 0; i < selectedImages.length; i++) {
+                const uri = selectedImages[i];
+                const filename = uri.split('/').pop() || `image_${i}.jpg`;
+                const match = /\.(\w+)$/.exec(filename);
+                const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+                formData.append('images', {
+                    uri,
+                    name: filename,
+                    type,
+                } as any);
+            }
+
+            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PUBLISH_ARTICLE}`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            const result = await response.json();
+
+            if (result.code === 0) {
+                setSelectedImages([]);
+                setTitle('');
+                setContent('');
+                setSelectedTopic('');
+                setLocation('');
+                setLocationDetail(null);
+                Alert.alert('发布成功', '您的内容已成功发布', [
+                    { text: '确定', onPress: () => router.back() }
+                ]);
+            } else {
+                Alert.alert('发布失败', result.msg || '请稍后重试');
+            }
+        } catch (error) {
+            Alert.alert('发布失败', '网络错误，请检查网络连接后重试');
+        } finally {
+            setIsPublishing(false);
+        }
     };
 
     const handleSaveDraft = () => {
-        // 这里处理保存草稿逻辑
         Alert.alert('保存成功', '内容已保存为草稿');
         router.back();
     };
@@ -99,6 +214,9 @@ export default function PublishScreen() {
                                 {selectedImages.length < 9 && (
                                     <TouchableOpacity style={styles.addButton} onPress={pickImage}>
                                         <Ionicons name="add" size={30} color="#999" />
+                                        <Text style={styles.addButtonText}>
+                                            {selectedImages.length}/9
+                                        </Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -112,6 +230,7 @@ export default function PublishScreen() {
                             placeholder="请输入标题"
                             value={title}
                             onChangeText={setTitle}
+                            maxLength={50}
                         />
                     </View>
 
@@ -124,7 +243,9 @@ export default function PublishScreen() {
                             onChangeText={setContent}
                             multiline
                             numberOfLines={5}
+                            maxLength={2000}
                         />
+                        <Text style={styles.charCount}>{content.length}/2000</Text>
                     </View>
 
                     {/* 话题选择 */}
@@ -138,7 +259,9 @@ export default function PublishScreen() {
                                         styles.topicButton,
                                         selectedTopic === topic && styles.selectedTopicButton
                                     ]}
-                                    onPress={() => setSelectedTopic(topic)}
+                                    onPress={() => setSelectedTopic(
+                                        selectedTopic === topic ? '' : topic
+                                    )}
                                 >
                                     <Text style={[
                                         styles.topicText,
@@ -155,11 +278,27 @@ export default function PublishScreen() {
                     <View style={CommonStyles.divider} />
 
                     {/* 位置选择 */}
-                    <TouchableOpacity style={styles.locationSection}>
-                        <Ionicons name="location-outline" size={20} color={Colors.textSecondary} />
-                        <Text style={styles.locationText}>
-                            {location || '添加位置'}
+                    <TouchableOpacity style={styles.locationSection} onPress={handleGetLocation}>
+                        {isLocating ? (
+                            <ActivityIndicator size="small" color={Colors.primary} />
+                        ) : (
+                            <Ionicons name="location-outline" size={20} color={location ? Colors.primary : Colors.textSecondary} />
+                        )}
+                        <Text style={[styles.locationText, location && styles.locationTextActive]}>
+                            {isLocating ? '定位中...' : (location || '添加位置')}
                         </Text>
+                        {location && !isLocating && (
+                            <TouchableOpacity
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    setLocation('');
+                                    setLocationDetail(null);
+                                }}
+                                style={styles.locationClear}
+                            >
+                                <Ionicons name="close-circle" size={16} color={Colors.textSecondary} />
+                            </TouchableOpacity>
+                        )}
                     </TouchableOpacity>
 
                     {/* 分割线 */}
@@ -168,12 +307,24 @@ export default function PublishScreen() {
 
                 {/* 底部按钮 */}
                 <View style={styles.footer}>
-                    <TouchableOpacity style={styles.draftButton} onPress={handleSaveDraft}>
+                    <TouchableOpacity
+                        style={styles.draftButton}
+                        onPress={handleSaveDraft}
+                        disabled={isPublishing}
+                    >
                         <FontAwesome name="bookmark-o" size={16} color="#666" />
                         <Text style={styles.draftText}>存草稿</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.publishButton} onPress={handlePublish}>
-                        <Text style={styles.publishText}>发布</Text>
+                    <TouchableOpacity
+                        style={[styles.publishButton, isPublishing && styles.publishButtonDisabled]}
+                        onPress={handlePublish}
+                        disabled={isPublishing}
+                    >
+                        {isPublishing ? (
+                            <ActivityIndicator size="small" color={Colors.white} />
+                        ) : (
+                            <Text style={styles.publishText}>发布</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -224,6 +375,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: Colors.backgroundLightGray,
     },
+    addButtonText: {
+        fontSize: 10,
+        color: '#999',
+        marginTop: 2,
+    },
     inputSection: {
         padding: Spacing.lg,
         ...CommonStyles.borderBottom,
@@ -238,6 +394,12 @@ const styles = StyleSheet.create({
         padding: 0,
         minHeight: 100,
         textAlignVertical: 'top',
+    },
+    charCount: {
+        textAlign: 'right',
+        color: Colors.textSecondary,
+        fontSize: FontSize.xs,
+        marginTop: Spacing.sm,
     },
     topicScroll: {
         marginHorizontal: -4,
@@ -267,6 +429,13 @@ const styles = StyleSheet.create({
     locationText: {
         marginLeft: Spacing.sm,
         color: Colors.textSecondary,
+        flex: 1,
+    },
+    locationTextActive: {
+        color: Colors.textPrimary,
+    },
+    locationClear: {
+        padding: 4,
     },
     footer: {
         flexDirection: 'row',
@@ -295,6 +464,9 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.md,
         borderRadius: 20,
         alignItems: 'center',
+    },
+    publishButtonDisabled: {
+        opacity: 0.6,
     },
     publishText: {
         color: Colors.white,

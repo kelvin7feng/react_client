@@ -8,11 +8,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  RefreshControl,
   NativeSyntheticEvent,
   NativeScrollEvent
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
+import { useFocusEffect } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 
@@ -77,29 +79,28 @@ export default function Index() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  // 使用 ref 来跟踪是否正在加载和上次加载的页码
   const isLoadingRef = useRef(false);
   const lastLoadedPageRef = useRef(0);
+  const isFirstLoad = useRef(true);
 
-  // 从API获取推荐数据
   const fetchRecommendations = useCallback(async (pageNum = 1, append = false) => {
-    // 如果已经在加载或已经加载过这一页，则跳过
-    if (isLoadingRef.current || lastLoadedPageRef.current >= pageNum) {
+    if (isLoadingRef.current || (append && lastLoadedPageRef.current >= pageNum)) {
       return;
     }
 
     try {
       isLoadingRef.current = true;
       lastLoadedPageRef.current = pageNum;
-      setError(null); // 清除之前的错误
+      setError(null);
 
       if (append) {
         setLoadingMore(true);
-      } else {
+      } else if (!refreshing) {
         setLoading(true);
       }
 
@@ -117,26 +118,46 @@ export default function Index() {
         setItems(data);
       }
 
-      // 假设如果返回的数据少于10条，说明没有更多数据了
       if (data.length < 10) {
         setHasMore(false);
+      } else {
+        setHasMore(true);
       }
 
       setPage(pageNum);
     } catch (err) {
       setError(err.message);
-      // 发生错误时重置最后加载的页码
       lastLoadedPageRef.current = pageNum - 1;
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      setRefreshing(false);
       isLoadingRef.current = false;
     }
-  }, []);
+  }, [refreshing]);
 
-  useEffect(() => {
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    lastLoadedPageRef.current = 0;
+    setPage(1);
+    setHasMore(true);
     fetchRecommendations(1, false);
   }, [fetchRecommendations]);
+
+  // 页面聚焦时刷新（从发布页返回等场景）
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstLoad.current) {
+        isFirstLoad.current = false;
+        fetchRecommendations(1, false);
+        return;
+      }
+      lastLoadedPageRef.current = 0;
+      setPage(1);
+      setHasMore(true);
+      fetchRecommendations(1, false);
+    }, [fetchRecommendations])
+  );
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -188,6 +209,14 @@ export default function Index() {
         style={CommonStyles.scrollView}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+          />
+        }
       >
         <View style={styles.columnsContainer}>
           {columns.map((column, columnIndex) => (
