@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
-    Image,
     ScrollView,
     StyleSheet,
     TouchableOpacity,
@@ -28,6 +27,7 @@ import { Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { formatCount } from '../../config/utils';
+import { RemoteImage } from '../../components/RemoteImage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -361,9 +361,10 @@ export default function ArticleDetailScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                         <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
                     </TouchableOpacity>
-                    <Image
-                        source={{ uri: article.author_avatar || 'https://picsum.photos/100/100' }}
+                    <RemoteImage
+                        uri={article.author_avatar || 'https://picsum.photos/100/100'}
                         style={styles.topBarAvatar}
+                        contentFit="cover"
                     />
                     <Text style={styles.topBarName} numberOfLines={1}>{article.author_name}</Text>
                 </View>
@@ -489,11 +490,12 @@ export default function ArticleDetailScreen() {
                                 scrollEventThrottle={16}
                             >
                                 {article.images.map((img: any, index: number) => (
-                                    <Image
+                                    <RemoteImage
                                         key={img.id || index}
-                                        source={{ uri: img.image_url }}
+                                        uri={img.image_url}
                                         style={styles.articleImage}
-                                        resizeMode="cover"
+                                        contentFit="cover"
+                                        recyclingKey={img.id != null ? String(img.id) : img.image_url}
                                     />
                                 ))}
                             </ScrollView>
@@ -544,9 +546,10 @@ export default function ArticleDetailScreen() {
                         ) : (
                             comments.map((comment: any) => (
                                 <View key={comment.id} style={styles.commentItem}>
-                                    <Image
-                                        source={{ uri: comment.author_avatar || 'https://picsum.photos/80/80' }}
+                                    <RemoteImage
+                                        uri={comment.author_avatar || 'https://picsum.photos/80/80'}
                                         style={styles.commentAvatar}
+                                        contentFit="cover"
                                     />
                                     <View style={styles.commentBody}>
                                         <View style={styles.commentHeader2}>

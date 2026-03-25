@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import {
-    View, Text, TextInput, TouchableOpacity, Image, FlatList,
+    View, Text, TextInput, TouchableOpacity, FlatList,
     StyleSheet, SafeAreaView, ActivityIndicator, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../config/api';
 import { Colors, Spacing, FontSize, Shadows } from '../config/styles';
 import { useAuth } from '../config/auth';
 import { formatCount } from '../config/utils';
+import { RemoteImage } from '../components/RemoteImage';
 
 const SEARCH_TYPES = [
     { key: 'article', label: '文章' },
@@ -47,7 +48,7 @@ export default function SearchScreen() {
 
     const renderArticleItem = ({ item }: { item: any }) => (
         <TouchableOpacity style={s.articleItem} onPress={() => router.push(`/article/${item.id}`)}>
-            {item.image ? <Image source={{ uri: item.image }} style={s.articleImage} /> : null}
+            {item.image ? <RemoteImage uri={item.image} style={s.articleImage} contentFit="cover" /> : null}
             <View style={s.articleInfo}>
                 <Text style={s.articleTitle} numberOfLines={2}>{item.title}</Text>
                 <View style={s.articleMeta}>
@@ -63,7 +64,7 @@ export default function SearchScreen() {
 
     const renderVehicleItem = ({ item }: { item: any }) => (
         <TouchableOpacity style={s.articleItem} onPress={() => router.push(`/vehicle/${item.id}`)}>
-            {item.main_image ? <Image source={{ uri: item.main_image }} style={s.articleImage} /> : null}
+            {item.main_image ? <RemoteImage uri={item.main_image} style={s.articleImage} contentFit="cover" /> : null}
             <View style={s.articleInfo}>
                 <Text style={s.articleTitle}>{item.model_name}</Text>
                 <Text style={s.articleAuthor}>{item.brand_name}</Text>
@@ -78,7 +79,7 @@ export default function SearchScreen() {
 
     const renderUserItem = ({ item }: { item: any }) => (
         <TouchableOpacity style={s.userItem}>
-            <Image source={{ uri: item.avatar || 'https://picsum.photos/80/80' }} style={s.userAvatar} />
+            <RemoteImage uri={item.avatar || 'https://picsum.photos/80/80'} style={s.userAvatar} contentFit="cover" />
             <View style={s.userInfo}>
                 <Text style={s.userName}>{item.username}</Text>
                 <Text style={s.userSig} numberOfLines={1}>{item.signature || '暂无签名'}</Text>

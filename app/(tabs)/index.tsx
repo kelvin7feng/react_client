@@ -4,7 +4,6 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
@@ -19,6 +18,7 @@ import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/s
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { formatCount } from '../../config/utils';
+import { RemoteImage } from '../../components/RemoteImage';
 
 // 头部组件
 const Header = ({ title = "推荐", onSearch }: { title?: string; onSearch?: () => void }) => {
@@ -63,7 +63,7 @@ const ErrorView = ({ error, onRetry }) => {
 const WaterfallItem = ({ item, onPress, onLike }) => {
   return (
     <TouchableOpacity style={styles.item} activeOpacity={0.8} onPress={() => onPress(item.id)}>
-      <Image source={{ uri: item.image }} style={styles.image} />
+      <RemoteImage uri={item.image} style={styles.image} contentFit="cover" recyclingKey={String(item.id)} />
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
         <View style={styles.footer}>

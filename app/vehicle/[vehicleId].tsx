@@ -7,7 +7,6 @@ import {
     Text,
     ScrollView,
     StyleSheet,
-    Image,
     ActivityIndicator,
     Alert,
     TouchableOpacity,
@@ -18,6 +17,7 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
+import { RemoteImage } from '../../components/RemoteImage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -69,10 +69,11 @@ const ImageGallery = ({ images }) => {
 
     const renderImageItem = ({ item, index }) => (
         <View style={styles.imageSlide}>
-            <Image
-                source={{ uri: item.image_url }}
+            <RemoteImage
+                uri={item.image_url}
                 style={styles.mainImage}
-                resizeMode="contain"
+                contentFit="contain"
+                recyclingKey={item.id != null ? String(item.id) : item.image_url}
             />
         </View>
     );

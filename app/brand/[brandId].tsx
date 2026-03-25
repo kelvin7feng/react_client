@@ -5,7 +5,6 @@ import {
     Text,
     FlatList,
     StyleSheet,
-    Image,
     ActivityIndicator,
     Alert,
     TouchableOpacity,
@@ -14,6 +13,7 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
+import { RemoteImage } from '../../components/RemoteImage';
 
 // 可复用的图片组件，处理加载失败的情况
 const VehicleImage = ({ uri, style }) => {
@@ -28,11 +28,11 @@ const VehicleImage = ({ uri, style }) => {
     }
 
     return (
-        <Image
-            source={{ uri }}
+        <RemoteImage
+            uri={uri}
             style={style}
             onError={() => setImageError(true)}
-            resizeMode="cover"
+            contentFit="cover"
         />
     );
 };

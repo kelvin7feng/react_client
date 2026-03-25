@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import {
-    View, Text, StyleSheet, FlatList, TouchableOpacity, Image,
+    View, Text, StyleSheet, FlatList, TouchableOpacity,
     SafeAreaView, Platform, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../../config/api';
 import { Colors, Spacing, FontSize } from '../../config/styles';
 import { useAuth } from '../../config/auth';
+import { RemoteImage } from '../../components/RemoteImage';
 
 const MSG_TYPE_CONFIG: Record<string, { icon: string; color: string; label: string }> = {
     like: { icon: 'heart', color: Colors.primary, label: '赞了你的笔记' },
@@ -105,7 +106,7 @@ export default function MessageScreen() {
         return (
             <TouchableOpacity style={[s.msgItem, !item.is_read && s.msgUnread]} onPress={() => handleMessagePress(item)}>
                 <View style={s.msgIconWrap}>
-                    <Image source={{ uri: item.sender_avatar || 'https://picsum.photos/80/80' }} style={s.msgAvatar} />
+                    <RemoteImage uri={item.sender_avatar || 'https://picsum.photos/80/80'} style={s.msgAvatar} contentFit="cover" />
                     <View style={[s.msgTypeBadge, { backgroundColor: cfg.color }]}>
                         <Ionicons name={cfg.icon as any} size={10} color="#fff" />
                     </View>
@@ -128,7 +129,7 @@ export default function MessageScreen() {
         const peerAvatar = isUser1 ? item.user2_avatar : item.user1_avatar;
         return (
             <TouchableOpacity style={s.convItem} onPress={() => handleConversationPress(item)}>
-                <Image source={{ uri: peerAvatar || 'https://picsum.photos/80/80' }} style={s.convAvatar} />
+                <RemoteImage uri={peerAvatar || 'https://picsum.photos/80/80'} style={s.convAvatar} contentFit="cover" />
                 <View style={s.convBody}>
                     <View style={s.convHeader}>
                         <Text style={s.convName} numberOfLines={1}>{peerName}</Text>

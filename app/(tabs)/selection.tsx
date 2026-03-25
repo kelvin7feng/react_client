@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     StyleSheet,
     ScrollView,
-    Image,
     SectionList,
     ActivityIndicator,
     Alert,
@@ -17,6 +16,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
+import { RemoteImage } from '../../components/RemoteImage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -39,10 +39,11 @@ const BrandImage = ({ uri, style }) => {
     }
 
     return (
-        <Image
-            source={{ uri }}
+        <RemoteImage
+            uri={uri}
             style={style}
             onError={() => setImageError(true)}
+            contentFit="cover"
         />
     );
 };

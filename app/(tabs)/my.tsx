@@ -3,7 +3,6 @@ import {
     Text,
     View,
     StyleSheet,
-    Image,
     ScrollView,
     SafeAreaView,
     Platform,
@@ -19,6 +18,7 @@ import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/s
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { formatCount } from '../../config/utils';
+import { RemoteImage } from '../../components/RemoteImage';
 
 const GenderIcon = ({ gender }: { gender: number }) => {
     if (gender === 1) {
@@ -60,7 +60,7 @@ const EmptyTabContent = ({ label }: { label: string }) => (
 const NoteItem = ({ item, onPress, onLike }: { item: any; onPress: (id: number) => void; onLike: (item: any) => void }) => (
     <TouchableOpacity style={styles.noteItem} activeOpacity={0.8} onPress={() => onPress(item.id)}>
         {item.image ? (
-            <Image source={{ uri: item.image }} style={styles.noteImage} />
+            <RemoteImage uri={item.image} style={styles.noteImage} contentFit="cover" recyclingKey={String(item.id)} />
         ) : (
             <View style={[styles.noteImage, styles.noteImagePlaceholder]}>
                 <Ionicons name="image-outline" size={24} color={Colors.borderDark} />
@@ -94,7 +94,7 @@ const CommentListItem = ({ item, onPress }: { item: any; onPress: (id: number) =
             </Text>
         </View>
         {item.article_image ? (
-            <Image source={{ uri: item.article_image }} style={styles.myCommentImage} />
+            <RemoteImage uri={item.article_image} style={styles.myCommentImage} contentFit="cover" />
         ) : null}
     </TouchableOpacity>
 );
@@ -354,9 +354,10 @@ export default function MyScreen() {
                 <LinearGradient colors={['#ededed', '#e8e8e8', '#f0f0f0']} style={styles.headerGradient}>
                     <TouchableOpacity style={styles.profileHeader} activeOpacity={0.7}
                         onPress={() => router.push('/profile-edit' as any)}>
-                        <Image
-                            source={{ uri: userData.avatar || 'https://picsum.photos/200/200?random=1' }}
+                        <RemoteImage
+                            uri={userData.avatar || 'https://picsum.photos/200/200?random=1'}
                             style={styles.avatar}
+                            contentFit="cover"
                         />
                         <View style={styles.profileInfo}>
                             <View style={styles.nameRow}>

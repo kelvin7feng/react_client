@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-    View, Text, TextInput, TouchableOpacity, FlatList, Image,
+    View, Text, TextInput, TouchableOpacity, FlatList,
     StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../../config/api';
 import { Colors, Spacing, FontSize } from '../../config/styles';
 import { useAuth } from '../../config/auth';
+import { RemoteImage } from '../../components/RemoteImage';
 
 const formatTime = (timeStr: string) => {
     if (!timeStr) return '';
@@ -77,7 +78,7 @@ export default function ChatScreen() {
         const isMine = item.sender_id === userId!;
         return (
             <View style={[s.msgRow, isMine && s.msgRowMine]}>
-                {!isMine && <Image source={{ uri: peerInfo?.avatar || 'https://picsum.photos/80/80' }} style={s.chatAvatar} />}
+                {!isMine && <RemoteImage uri={peerInfo?.avatar || 'https://picsum.photos/80/80'} style={s.chatAvatar} contentFit="cover" />}
                 <View style={[s.bubble, isMine ? s.bubbleMine : s.bubblePeer]}>
                     <Text style={[s.bubbleText, isMine && s.bubbleTextMine]}>{item.content}</Text>
                 </View>
