@@ -19,14 +19,17 @@ import {
     NativeScrollEvent,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../../config/api';
 import { Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
+import { useAuth } from '../../config/auth';
+import { formatCount } from '../../config/utils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CURRENT_USER_ID = 1000000;
 
 // 时间格式化
 const formatTime = (timeStr: string) => {
@@ -51,12 +54,15 @@ const formatTime = (timeStr: string) => {
 export default function ArticleDetailScreen() {
     const { articleId } = useLocalSearchParams<{ articleId: string }>();
     const router = useRouter();
+    const { userId, isLoggedIn } = useAuth();
 
     const [article, setArticle] = useState<any>(null);
     const [comments, setComments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [liked, setLiked] = useState(false);
     const [likeCount, setLikeCount] = useState(0);
+    const [favorited, setFavorited] = useState(false);
+    const [favoriteCount, setFavoriteCount] = useState(0);
     const [commentText, setCommentText] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -65,14 +71,14 @@ export default function ArticleDetailScreen() {
     const shareSlideAnim = useRef(new Animated.Value(0)).current;
     const inputRef = useRef<TextInput>(null);
 
-    const isOwnArticle = article?.author_id === CURRENT_USER_ID;
+    const isOwnArticle = article?.author_id === userId;
 
     const fetchArticle = useCallback(async () => {
         try {
             const response = await fetch(
                 buildApiUrl(API_ENDPOINTS.GET_ARTICLE_DETAIL, {
                     article_id: articleId!,
-                    user_id: CURRENT_USER_ID,
+                    user_id: userId || 0,
                 })
             );
             const result = await response.json();
@@ -80,13 +86,16 @@ export default function ArticleDetailScreen() {
                 setArticle(result.data);
                 setLiked(result.data.liked);
                 setLikeCount(result.data.like_count);
+                setFavorited(result.data.favorited);
+                setFavoriteCount(result.data.favorite_count || 0);
+                setFollowed(result.data.followed);
             }
         } catch (err) {
             Alert.alert('加载失败', '无法获取文章详情');
         } finally {
             setLoading(false);
         }
-    }, [articleId]);
+    }, [articleId, userId]);
 
     const fetchComments = useCallback(async () => {
         try {
@@ -106,6 +115,7 @@ export default function ArticleDetailScreen() {
     }, [fetchArticle, fetchComments]);
 
     const handleLike = async () => {
+        if (!isLoggedIn) { router.push('/login'); return; }
         const prevLiked = liked;
         const prevCount = likeCount;
         const newLiked = !liked;
@@ -117,7 +127,7 @@ export default function ArticleDetailScreen() {
             const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_LIKE}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ article_id: Number(articleId), user_id: CURRENT_USER_ID }),
+                body: JSON.stringify({ article_id: Number(articleId), user_id: userId }),
             });
             const result = await response.json();
             if (result.code !== 0) {
@@ -137,6 +147,7 @@ export default function ArticleDetailScreen() {
     };
 
     const handleSubmitComment = async () => {
+        if (!isLoggedIn) { router.push('/login'); return; }
         if (!commentText.trim()) return;
         setSubmitting(true);
         try {
@@ -145,7 +156,7 @@ export default function ArticleDetailScreen() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     article_id: Number(articleId),
-                    author_id: CURRENT_USER_ID,
+                    author_id: userId,
                     content: commentText.trim(),
                 }),
             });
@@ -190,14 +201,133 @@ export default function ArticleDetailScreen() {
             if (action === '复制链接') {
                 await Clipboard.setStringAsync(`${API_BASE_URL}/article/${articleId}`);
                 Alert.alert('提示', '链接已复制到剪贴板');
+            } else if (action === '保存图片') {
+                if (article?.images?.length > 0) {
+                    try {
+                        const { status } = await MediaLibrary.requestPermissionsAsync();
+                        if (status !== 'granted') {
+                            Alert.alert('提示', '需要相册权限');
+                            return;
+                        }
+                        const imageUrl = article.images[0].image_url;
+                        const fileUri = FileSystem.cacheDirectory + 'share_image.jpg';
+                        const { uri } = await FileSystem.downloadAsync(imageUrl, fileUri);
+                        await MediaLibrary.saveToLibraryAsync(uri);
+                        Alert.alert('成功', '图片已保存到相册');
+                    } catch {
+                        Alert.alert('失败', '保存图片失败');
+                    }
+                } else {
+                    Alert.alert('提示', '该文章没有图片');
+                }
             } else {
                 Alert.alert('提示', `${action}功能开发中`);
             }
         });
     };
 
-    const handleFollow = () => {
-        setFollowed(!followed);
+    const handleFollow = async () => {
+        if (!isLoggedIn) { router.push('/login'); return; }
+        const prev = followed;
+        setFollowed(!prev);
+        try {
+            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_FOLLOW}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ follower_id: userId, following_id: article.author_id }),
+            });
+            const result = await response.json();
+            if (result.code !== 0) {
+                setFollowed(prev);
+            } else {
+                EventBus.emit(Events.FOLLOW_CHANGED, { userId: article.author_id, followed: !prev });
+            }
+        } catch {
+            setFollowed(prev);
+        }
+    };
+
+    const handleFavorite = async () => {
+        if (!isLoggedIn) { router.push('/login'); return; }
+        const prevFavorited = favorited;
+        const prevCount = favoriteCount;
+        const newFavorited = !favorited;
+        const newCount = favorited ? favoriteCount - 1 : favoriteCount + 1;
+        setFavorited(newFavorited);
+        setFavoriteCount(newCount);
+        try {
+            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_FAVORITE}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ article_id: Number(articleId), user_id: userId }),
+            });
+            const result = await response.json();
+            if (result.code !== 0) {
+                setFavorited(prevFavorited);
+                setFavoriteCount(prevCount);
+            } else {
+                EventBus.emit(Events.ARTICLE_FAVORITE_CHANGED, { articleId: Number(articleId), favorited: newFavorited });
+            }
+        } catch {
+            setFavorited(prevFavorited);
+            setFavoriteCount(prevCount);
+        }
+    };
+
+    const handleCommentLike = async (commentId: number, currentlyLiked: boolean, currentCount: number) => {
+        if (!isLoggedIn) { router.push('/login'); return; }
+        const newLiked = !currentlyLiked;
+        const newCount = currentlyLiked ? currentCount - 1 : currentCount + 1;
+        setComments(prev => prev.map(c => {
+            if (c.id === commentId) return { ...c, liked: newLiked, like_count: newCount };
+            if (c.children) {
+                return { ...c, children: c.children.map((ch: any) =>
+                    ch.id === commentId ? { ...ch, liked: newLiked, like_count: newCount } : ch
+                )};
+            }
+            return c;
+        }));
+        try {
+            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_COMMENT_LIKE}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ comment_id: commentId, user_id: userId }),
+            });
+            const result = await response.json();
+            if (result.code !== 0) {
+                setComments(prev => prev.map(c => {
+                    if (c.id === commentId) return { ...c, liked: currentlyLiked, like_count: currentCount };
+                    if (c.children) {
+                        return { ...c, children: c.children.map((ch: any) =>
+                            ch.id === commentId ? { ...ch, liked: currentlyLiked, like_count: currentCount } : ch
+                        )};
+                    }
+                    return c;
+                }));
+            }
+        } catch {
+            setComments(prev => prev.map(c => {
+                if (c.id === commentId) return { ...c, liked: currentlyLiked, like_count: currentCount };
+                if (c.children) {
+                    return { ...c, children: c.children.map((ch: any) =>
+                        ch.id === commentId ? { ...ch, liked: currentlyLiked, like_count: currentCount } : ch
+                    )};
+                }
+                return c;
+            }));
+        }
+    };
+
+    const handleViewAllReplies = async (parentId: number) => {
+        try {
+            const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_CHILD_COMMENTS, { parent_id: parentId, page: 1 }));
+            const result = await response.json();
+            if (result.code === 0) {
+                setComments(prev => prev.map(c =>
+                    c.id === parentId ? { ...c, children: result.data, _expanded: true } : c
+                ));
+            }
+        } catch {}
     };
 
     const onImageScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -419,11 +549,28 @@ export default function ArticleDetailScreen() {
                                         style={styles.commentAvatar}
                                     />
                                     <View style={styles.commentBody}>
-                                        <Text style={styles.commentAuthor}>{comment.author_name}</Text>
+                                        <View style={styles.commentHeader2}>
+                                            <Text style={styles.commentAuthor}>{comment.author_name}</Text>
+                                            <TouchableOpacity
+                                                style={styles.commentLikeBtn}
+                                                onPress={() => handleCommentLike(comment.id, comment.liked, comment.like_count)}
+                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                            >
+                                                <Ionicons
+                                                    name={comment.liked ? 'heart' : 'heart-outline'}
+                                                    size={14}
+                                                    color={comment.liked ? Colors.primary : Colors.textTertiary}
+                                                />
+                                                {comment.like_count > 0 && (
+                                                    <Text style={[styles.commentLikeText, comment.liked && { color: Colors.primary }]}>
+                                                        {formatCount(comment.like_count)}
+                                                    </Text>
+                                                )}
+                                            </TouchableOpacity>
+                                        </View>
                                         <Text style={styles.commentContent}>{comment.content}</Text>
                                         <Text style={styles.commentTime}>{formatTime(comment.created_time)}</Text>
 
-                                        {/* 子评论 */}
                                         {comment.children && comment.children.length > 0 && (
                                             <View style={styles.childComments}>
                                                 {comment.children.map((child: any) => (
@@ -443,8 +590,8 @@ export default function ArticleDetailScreen() {
                                                         </Text>
                                                     </View>
                                                 ))}
-                                                {comment.child_comment_count > comment.children.length && (
-                                                    <TouchableOpacity>
+                                                {comment.child_comment_count > comment.children.length && !comment._expanded && (
+                                                    <TouchableOpacity onPress={() => handleViewAllReplies(comment.id)}>
                                                         <Text style={styles.viewMoreReplies}>
                                                             查看全部 {comment.child_comment_count} 条回复
                                                         </Text>
@@ -485,22 +632,29 @@ export default function ArticleDetailScreen() {
                         ) : null}
                     </View>
 
-                    <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
-                        <Ionicons
-                            name={liked ? 'heart' : 'heart-outline'}
-                            size={24}
-                            color={liked ? Colors.primary : Colors.textSecondary}
-                        />
-                        {likeCount > 0 && (
+                    <View style={styles.actionsRow}>
+                        <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
+                            <Ionicons
+                                name={liked ? 'heart' : 'heart-outline'}
+                                size={22}
+                                color={liked ? Colors.primary : Colors.textSecondary}
+                            />
                             <Text style={[styles.actionCount, liked && { color: Colors.primary }]}>
-                                {likeCount}
+                                {likeCount > 0 ? formatCount(likeCount) : '点赞'}
                             </Text>
-                        )}
-                    </TouchableOpacity>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.actionButton}>
-                        <Ionicons name="star-outline" size={24} color={Colors.textSecondary} />
-                    </TouchableOpacity>
+                        <TouchableOpacity style={styles.actionButton} onPress={handleFavorite}>
+                            <Ionicons
+                                name={favorited ? 'star' : 'star-outline'}
+                                size={22}
+                                color={favorited ? '#FFAA00' : Colors.textSecondary}
+                            />
+                            <Text style={[styles.actionCount, favorited && { color: '#FFAA00' }]}>
+                                {favoriteCount > 0 ? formatCount(favoriteCount) : '收藏'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -735,11 +889,25 @@ const styles = StyleSheet.create({
     commentBody: {
         flex: 1,
     },
+    commentHeader2: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
     commentAuthor: {
         fontSize: FontSize.sm,
         fontWeight: '500',
         color: Colors.textSecondary,
-        marginBottom: 4,
+    },
+    commentLikeBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    commentLikeText: {
+        fontSize: FontSize.xs,
+        color: Colors.textTertiary,
+        marginLeft: 3,
     },
     commentContent: {
         fontSize: FontSize.md,
@@ -789,13 +957,12 @@ const styles = StyleSheet.create({
         borderTopColor: Colors.border,
     },
     inputWrapper: {
-        flex: 1,
+        flex: 5,
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: Colors.backgroundGray,
         borderRadius: 20,
         paddingHorizontal: Spacing.md,
-        marginRight: Spacing.sm,
         height: 36,
     },
     commentInput: {
@@ -812,13 +979,21 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         fontSize: FontSize.sm,
     },
-    actionButton: {
+    actionsRow: {
+        flex: 4,
+        flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: Spacing.sm + 2,
+        justifyContent: 'space-evenly',
+    },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flex: 1,
     },
     actionCount: {
-        fontSize: 10,
+        fontSize: 11,
         color: Colors.textSecondary,
-        marginTop: 1,
+        marginLeft: 2,
     },
 });

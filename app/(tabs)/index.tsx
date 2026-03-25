@@ -14,22 +14,21 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
-import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
+import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
-import { API_BASE_URL } from '../../config/api';
-
-const CURRENT_USER_ID = 1000000;
+import { useAuth } from '../../config/auth';
+import { formatCount } from '../../config/utils';
 
 // 头部组件
-const Header = ({ title = "推荐" }) => {
+const Header = ({ title = "推荐", onSearch }: { title?: string; onSearch?: () => void }) => {
   return (
     <View style={styles.header}>
       <TouchableOpacity style={styles.menuButton}>
         <Feather name="menu" size={24} color="black" />
       </TouchableOpacity>
       <Text style={styles.headerTitle}>{title}</Text>
-      <TouchableOpacity style={styles.searchButton}>
+      <TouchableOpacity style={styles.searchButton} onPress={onSearch}>
         <Ionicons name="search" size={24} color="#333" />
       </TouchableOpacity>
     </View>
@@ -71,7 +70,7 @@ const WaterfallItem = ({ item, onPress, onLike }) => {
           <Text style={styles.author}>{item.author}</Text>
           <TouchableOpacity style={styles.likesContainer} onPress={(e) => { e.stopPropagation(); onLike(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name={item.liked ? 'heart' : 'heart-outline'} size={14} color={item.liked ? Colors.primary : Colors.textSecondary} />
-            <Text style={[styles.likes, item.liked && { color: Colors.primary }]}>{item.likes > 0 ? ` ${item.likes}` : ''}</Text>
+            <Text style={[styles.likes, item.liked && { color: Colors.primary }]}>{item.likes > 0 ? ` ${formatCount(item.likes)}` : ''}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -81,6 +80,7 @@ const WaterfallItem = ({ item, onPress, onLike }) => {
 
 export default function Index() {
   const router = useRouter();
+  const { userId, isLoggedIn } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -108,7 +108,7 @@ export default function Index() {
         setLoading(true);
       }
 
-      const response = await fetch(buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, { page: pageNum, user_id: CURRENT_USER_ID }));
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, { page: pageNum, user_id: userId || 0 }));
 
       if (!response.ok) {
         throw new Error(`HTTP错误! 状态: ${response.status}`);
@@ -138,17 +138,19 @@ export default function Index() {
       setRefreshing(false);
       isLoadingRef.current = false;
     }
-  }, [refreshing]);
+  }, [refreshing, userId]);
 
   const handleRefresh = useCallback(() => {
+    if (!isLoggedIn) { router.push('/login'); return; }
     setRefreshing(true);
     lastLoadedPageRef.current = 0;
     setPage(1);
     setHasMore(true);
     fetchRecommendations(1, false);
-  }, [fetchRecommendations]);
+  }, [fetchRecommendations, isLoggedIn, router]);
 
   const handleCardLike = useCallback(async (article: any) => {
+    if (!isLoggedIn) { router.push('/login'); return; }
     const newLiked = !article.liked;
     const newCount = newLiked ? article.likes + 1 : Math.max(article.likes - 1, 0);
 
@@ -160,7 +162,7 @@ export default function Index() {
       const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_LIKE}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ article_id: article.id, user_id: CURRENT_USER_ID }),
+        body: JSON.stringify({ article_id: article.id, user_id: userId }),
       });
       const result = await response.json();
       if (result.code === 0) {
@@ -179,7 +181,7 @@ export default function Index() {
         it.id === article.id ? { ...it, liked: article.liked, likes: article.likes } : it
       ));
     }
-  }, []);
+  }, [isLoggedIn, userId, router]);
 
   useEffect(() => {
     fetchRecommendations(1, false);
@@ -218,7 +220,7 @@ export default function Index() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Header />
+        <Header onSearch={() => { if (!isLoggedIn) { router.push('/login'); return; } router.push('/search'); }} />
         <LoadingView />
       </View>
     );
@@ -228,7 +230,7 @@ export default function Index() {
   if (error) {
     return (
       <View style={styles.container}>
-        <Header />
+        <Header onSearch={() => { if (!isLoggedIn) { router.push('/login'); return; } router.push('/search'); }} />
         <ErrorView error={error} onRetry={() => fetchRecommendations(1, false)} />
       </View>
     );
@@ -236,7 +238,7 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <Header />
+      <Header onSearch={() => { if (!isLoggedIn) { router.push('/login'); return; } router.push('/search'); }} />
 
       <ScrollView
         style={CommonStyles.scrollView}

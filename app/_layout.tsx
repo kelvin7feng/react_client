@@ -1,10 +1,12 @@
 import { Stack } from 'expo-router';
 import { LogBox } from 'react-native';
+import { AuthProvider } from '../config/auth';
 
 LogBox.ignoreAllLogs(false);
 
 export default function RootLayout() {
   return (
+    <AuthProvider>
     <Stack
       screenOptions={{
         headerStyle: {
@@ -35,7 +37,12 @@ export default function RootLayout() {
         options={{
           headerShown: false,
       }} />
+      <Stack.Screen name="search" options={{ headerShown: false }} />
+      <Stack.Screen name="profile-edit" options={{ title: '编辑资料', headerBackTitle: '返回' }} />
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="chat/[conversationId]" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />
     </Stack>
+    </AuthProvider>
   );
 }

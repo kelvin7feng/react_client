@@ -11,9 +11,20 @@ import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useAuth } from '../../config/auth';
 
 export default function TabLayout() {
     const router = useRouter();
+    const { isLoggedIn } = useAuth();
+
+    const authGuardListener = {
+        tabPress: (e: any) => {
+            if (!isLoggedIn) {
+                e.preventDefault();
+                router.push('/login');
+            }
+        },
+    };
 
     return (
         <View style={{ flex: 1 }}>
@@ -47,12 +58,11 @@ export default function TabLayout() {
                         ),
                     }}
                 />
-                {/* 发布按钮占位符 - 使用自定义按钮 */}
                 <Tabs.Screen
                     name="publish"
                     options={{
                         title: '',
-                        tabBarButton: (props) => (
+                        tabBarButton: () => (
                             <View
                                 style={{
                                     flex: 1,
@@ -71,7 +81,10 @@ export default function TabLayout() {
                                         alignItems: 'center',
                                         marginBottom: 5,
                                     }}
-                                    onPress={() => router.push('/publish')}
+                                    onPress={() => {
+                                        if (!isLoggedIn) { router.push('/login'); return; }
+                                        router.push('/publish');
+                                    }}
                                 >
                                     <Ionicons name="add" size={24} color="#fff" />
                                 </TouchableOpacity>
@@ -87,6 +100,7 @@ export default function TabLayout() {
                             <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} color={color} size={24} />
                         ),
                     }}
+                    listeners={authGuardListener}
                 />
                 <Tabs.Screen
                     name="my"
@@ -96,6 +110,7 @@ export default function TabLayout() {
                             <AntDesign name="user" size={24} color={color} />
                         ),
                     }}
+                    listeners={authGuardListener}
                 />
             </Tabs>
         </View>

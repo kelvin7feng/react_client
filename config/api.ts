@@ -10,23 +10,57 @@ export const API_BASE_URL = 'http://43.163.75.18:8090';
 export const API_ENDPOINTS = {
   // 用户相关
   GET_BASIC_INFO: '/getbasicinfo',
-  
+  USER_STATS: '/userstats',
+  UPDATE_USER_INFO: '/updateuserinfo',
+
   // 推荐相关
   RECOMMENDATIONS: '/recommendations',
-  
+
   // 品牌相关
   GET_BRANDS: '/getbrands',
   GET_VEHICLES: '/getvehicles',
-  
+
   // 车辆相关
   GET_VEHICLE_DETAIL: '/getvehicledetail',
-  
+
   // 文章相关
   PUBLISH_ARTICLE: '/publish',
   GET_ARTICLE_DETAIL: '/getarticledetail',
   GET_COMMENTS: '/getcomments',
+  GET_CHILD_COMMENTS: '/getchildcomments',
   CREATE_COMMENT: '/createcomment',
   TOGGLE_LIKE: '/togglelike',
+  TOGGLE_FAVORITE: '/togglefavorite',
+  TOGGLE_COMMENT_LIKE: '/togglecommentlike',
+
+  // 关注
+  TOGGLE_FOLLOW: '/togglefollow',
+  FOLLOWERS: '/followers',
+  FOLLOWING: '/following',
+
+  // 我的 Tab
+  MY_FAVORITES: '/myfavorites',
+  MY_LIKED: '/myliked',
+  MY_COMMENTS: '/mycomments',
+
+  // 搜索
+  SEARCH: '/search',
+
+  // 登录注册
+  SEND_CODE: '/send-code',
+  REGISTER: '/register',
+  LOGIN: '/login',
+
+  // 消息
+  MESSAGES: '/messages',
+  READ_MESSAGE: '/readmessage',
+  READ_ALL_MESSAGES: '/readallmessages',
+  UNREAD_COUNT: '/unreadcount',
+
+  // 私信
+  CONVERSATIONS: '/conversations',
+  CHAT_HISTORY: '/chathistory',
+  SEND_MESSAGE: '/sendmessage',
 } as const;
 
 /**

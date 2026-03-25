@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -14,13 +14,18 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { CommonStyles, Colors, Spacing, FontSize } from '../../config/styles';
 import { API_BASE_URL, API_ENDPOINTS } from '../../config/api';
+import { useAuth } from '../../config/auth';
+
+const DRAFT_KEY = 'publish_draft';
 
 export default function PublishScreen() {
     const router = useRouter();
+    const { userId } = useAuth();
     const [selectedImages, setSelectedImages] = useState<string[]>([]);
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
@@ -36,6 +41,38 @@ export default function PublishScreen() {
     } | null>(null);
     const [isPublishing, setIsPublishing] = useState(false);
     const [isLocating, setIsLocating] = useState(false);
+    const [draftLoaded, setDraftLoaded] = useState(false);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const raw = await AsyncStorage.getItem(DRAFT_KEY);
+                if (raw) {
+                    const draft = JSON.parse(raw);
+                    if (draft.title) setTitle(draft.title);
+                    if (draft.content) setContent(draft.content);
+                    if (draft.selectedTopic) setSelectedTopic(draft.selectedTopic);
+                    if (draft.location) setLocation(draft.location);
+                    if (draft.locationDetail) setLocationDetail(draft.locationDetail);
+                    if (draft.selectedImages) setSelectedImages(draft.selectedImages);
+                }
+            } catch {} finally { setDraftLoaded(true); }
+        })();
+    }, []);
+
+    const saveDraftToStorage = useCallback(async () => {
+        try {
+            const draft = { title, content, selectedTopic, location, locationDetail, selectedImages };
+            const hasContent = title || content || selectedTopic || location || selectedImages.length > 0;
+            if (hasContent) {
+                await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+            }
+        } catch {}
+    }, [title, content, selectedTopic, location, locationDetail, selectedImages]);
+
+    const clearDraft = async () => {
+        try { await AsyncStorage.removeItem(DRAFT_KEY); } catch {}
+    };
 
     const topics = [
         '摩托车改装', '骑行装备', '机车摄影', '赛道日',
@@ -121,7 +158,7 @@ export default function PublishScreen() {
             const formData = new FormData();
             formData.append('title', title.trim());
             formData.append('content', content.trim());
-            formData.append('author_id', '1000000');
+            formData.append('author_id', String(userId));
 
             if (selectedTopic) {
                 formData.append('topic', selectedTopic);
@@ -163,6 +200,7 @@ export default function PublishScreen() {
                 setSelectedTopic('');
                 setLocation('');
                 setLocationDetail(null);
+                await clearDraft();
                 Alert.alert('发布成功', '您的内容已成功发布', [
                     { text: '确定', onPress: () => router.back() }
                 ]);
@@ -176,7 +214,8 @@ export default function PublishScreen() {
         }
     };
 
-    const handleSaveDraft = () => {
+    const handleSaveDraft = async () => {
+        await saveDraftToStorage();
         Alert.alert('保存成功', '内容已保存为草稿');
         router.back();
     };

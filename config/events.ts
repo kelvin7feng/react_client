@@ -15,10 +15,22 @@ export const EventBus = {
 
 export const Events = {
   ARTICLE_LIKE_CHANGED: 'article:like_changed',
+  ARTICLE_FAVORITE_CHANGED: 'article:favorite_changed',
+  FOLLOW_CHANGED: 'user:follow_changed',
 } as const;
 
 export type LikeChangedPayload = {
   articleId: number;
   liked: boolean;
   likeCount: number;
+};
+
+export type FavoriteChangedPayload = {
+  articleId: number;
+  favorited: boolean;
+};
+
+export type FollowChangedPayload = {
+  userId: number;
+  followed: boolean;
 };
