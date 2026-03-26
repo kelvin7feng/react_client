@@ -10,10 +10,6 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Dimensions,
-  Platform,
-  Animated,
-  Easing,
-  LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
@@ -24,108 +20,14 @@ import { CommonStyles, Colors, Spacing, FontSize } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
+import { SwipeTabView } from '../../components/SwipeTabView';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 type TabKey = 'following' | 'recommend' | 'nearby';
 
-const TAB_LABELS: Record<TabKey, string> = {
-  following: '关注',
-  recommend: '推荐',
-  nearby: '附近',
-};
-
 const TAB_ORDER: TabKey[] = ['following', 'recommend', 'nearby'];
 
-const INDICATOR_WIDTH = 26;
-const INDICATOR_HEIGHT = 2.5;
-
-const COLOR_INACTIVE = Colors.textTertiary;
-const COLOR_ACTIVE = Colors.textPrimary;
-
-const Header = ({
-  activeTab,
-  onTabChange,
-  nearbyCity,
-  onSearch,
-  tabCentersRef,
-  indicatorStyle,
-  scrollX,
-  onTabsLayout,
-}: {
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
-  nearbyCity: string;
-  onSearch?: () => void;
-  tabCentersRef: React.MutableRefObject<number[]>;
-  indicatorStyle: { left: any; width: any };
-  scrollX: Animated.Value;
-  onTabsLayout: () => void;
-}) => {
-  return (
-    <View style={styles.header}>
-      <TouchableOpacity style={styles.menuButton}>
-        <Feather name="menu" size={24} color="black" />
-      </TouchableOpacity>
-
-      <View style={styles.tabBar}>
-        {TAB_ORDER.map((tab, idx) => {
-          const isActive = activeTab === tab;
-          const label = tab === 'nearby' && nearbyCity ? nearbyCity : TAB_LABELS[tab];
-
-          const textColor = scrollX.interpolate({
-            inputRange: TAB_ORDER.map((_, i) => i * SCREEN_WIDTH),
-            outputRange: TAB_ORDER.map((_, i) => i === idx ? COLOR_ACTIVE : COLOR_INACTIVE),
-            extrapolate: 'clamp',
-          });
-
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={styles.tabItem}
-              onPress={() => onTabChange(tab)}
-              onLayout={(e) => {
-                const { x, width } = e.nativeEvent.layout;
-                tabCentersRef.current[idx] = x + width / 2;
-                if (tabCentersRef.current.every(c => c > 0)) {
-                  onTabsLayout();
-                }
-              }}
-            >
-              <Animated.Text
-                style={[
-                  styles.tabText,
-                  
-                  { color: textColor },
-                ]}
-              >
-                {label}
-              </Animated.Text>
-            </TouchableOpacity>
-          );
-        })}
-
-        <Animated.View
-          style={[
-            styles.tabIndicator,
-            {
-              position: 'absolute',
-              bottom: 0,
-              left: indicatorStyle.left,
-              width: indicatorStyle.width,
-            },
-          ]}
-        />
-      </View>
-
-      <TouchableOpacity style={styles.searchButton} onPress={onSearch}>
-        <Ionicons name="search" size={24} color="#333" />
-      </TouchableOpacity>
-    </View>
-  );
-};
-
-// 单个 Tab 页的内容组件
 const TabContent = ({
   state,
   onScroll,
@@ -142,61 +44,47 @@ const TabContent = ({
   renderItem: (item: any) => React.ReactNode;
 }) => {
   if (state.loading && !state.refreshing) {
-    return (
-      <View style={styles.tabPage}>
-        <LoadingView />
-      </View>
-    );
+    return <LoadingView />;
   }
 
   if (state.error && state.items.length === 0) {
-    return (
-      <View style={styles.tabPage}>
-        <ErrorView error={state.error} onRetry={onRetry} />
-      </View>
-    );
+    return <ErrorView error={state.error} onRetry={onRetry} />;
   }
 
   if (state.items.length === 0 && state.initialized) {
-    return (
-      <View style={styles.tabPage}>
-        <EmptyView message={emptyMessage} />
-      </View>
-    );
+    return <EmptyView message={emptyMessage} />;
   }
 
   return (
-    <View style={styles.tabPage}>
-      <ScrollView
-        style={CommonStyles.scrollView}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        nestedScrollEnabled
-        refreshControl={
-          <RefreshControl
-            refreshing={state.refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary]}
-            tintColor={Colors.primary}
-          />
-        }
-      >
-        {renderItem(state.items)}
+    <ScrollView
+      style={CommonStyles.scrollView}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+      nestedScrollEnabled
+      refreshControl={
+        <RefreshControl
+          refreshing={state.refreshing}
+          onRefresh={onRefresh}
+          colors={[Colors.primary]}
+          tintColor={Colors.primary}
+        />
+      }
+    >
+      {renderItem(state.items)}
 
-        {state.loadingMore && (
-          <View style={CommonStyles.loadingMoreContainer}>
-            <ActivityIndicator size="small" color={Colors.primaryBlue} />
-            <Text style={CommonStyles.loadingMoreText}>加载更多...</Text>
-          </View>
-        )}
+      {state.loadingMore && (
+        <View style={CommonStyles.loadingMoreContainer}>
+          <ActivityIndicator size="small" color={Colors.primaryBlue} />
+          <Text style={CommonStyles.loadingMoreText}>加载更多...</Text>
+        </View>
+      )}
 
-        {!state.hasMore && state.items.length > 0 && (
-          <View style={CommonStyles.noMoreContainer}>
-            <Text style={CommonStyles.noMoreText}>没有更多数据了</Text>
-          </View>
-        )}
-      </ScrollView>
-    </View>
+      {!state.hasMore && state.items.length > 0 && (
+        <View style={CommonStyles.noMoreContainer}>
+          <Text style={CommonStyles.noMoreText}>没有更多数据了</Text>
+        </View>
+      )}
+    </ScrollView>
   );
 };
 
@@ -271,7 +159,6 @@ export default function Index() {
     nearby: 0,
   });
 
-  // 获取用户城市定位
   useEffect(() => {
     (async () => {
       try {
@@ -366,14 +253,12 @@ export default function Index() {
     }
   }, [userId, city, updateTabState]);
 
-  // 初次加载推荐 tab
   useEffect(() => {
     lastLoadedPageRef.current.recommend = 0;
     updateTabState('recommend', { ...initialTabState });
     fetchArticles('recommend', 1, false);
   }, [userId]);
 
-  // 切换 tab 时懒加载
   useEffect(() => {
     if (activeTab === 'recommend') return;
     if (activeTab === 'following' && !tabStates.following.initialized) {
@@ -386,7 +271,6 @@ export default function Index() {
     }
   }, [activeTab, city]);
 
-  // 城市变化后重新加载附近 tab
   useEffect(() => {
     if (city && tabStates.nearby.initialized) {
       lastLoadedPageRef.current.nearby = 0;
@@ -395,7 +279,6 @@ export default function Index() {
     }
   }, [city]);
 
-  // 监听全局点赞事件
   useEffect(() => {
     const off = EventBus.on(Events.ARTICLE_LIKE_CHANGED, ({ articleId, liked, likeCount }: LikeChangedPayload) => {
       setTabStates(prev => {
@@ -414,96 +297,9 @@ export default function Index() {
     return off;
   }, []);
 
-  const pagerRef = useRef<ScrollView>(null);
-  const isTabSwitchingRef = useRef(false);
-  const tabCentersRef = useRef<number[]>([0, 0, 0]);
-  const scrollX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
-
-  const buildIndicatorStyle = useCallback(() => {
-    const centers = tabCentersRef.current;
-    if (centers.some(c => c === 0)) return { left: 0, width: INDICATOR_WIDTH };
-
-    const pageInputRange = TAB_ORDER.map((_, i) => i * SCREEN_WIDTH);
-
-    const centerOutput = centers;
-    const animCenter = scrollX.interpolate({
-      inputRange: pageInputRange,
-      outputRange: centerOutput,
-      extrapolate: 'clamp',
-    });
-
-    const widthStops: number[] = [];
-    const widthValues: number[] = [];
-    for (let i = 0; i < TAB_ORDER.length; i++) {
-      widthStops.push(i * SCREEN_WIDTH);
-      widthValues.push(INDICATOR_WIDTH);
-      if (i < TAB_ORDER.length - 1) {
-        widthStops.push((i + 0.5) * SCREEN_WIDTH);
-        widthValues.push(INDICATOR_WIDTH * 1.8);
-      }
-    }
-    const animWidth = scrollX.interpolate({
-      inputRange: widthStops,
-      outputRange: widthValues,
-      extrapolate: 'clamp',
-    });
-
-    const animLeft = Animated.subtract(animCenter, Animated.divide(animWidth, 2));
-
-    return { left: animLeft, width: animWidth };
-  }, [scrollX]);
-
-  const [indicatorStyle, setIndicatorStyle] = useState<{ left: any; width: any }>({ left: 0, width: INDICATOR_WIDTH });
-
-  const rebuildIndicator = useCallback(() => {
-    setIndicatorStyle(buildIndicatorStyle());
-  }, [buildIndicatorStyle]);
-
-  const handleTabChange = useCallback((tab: TabKey) => {
-    const toIdx = TAB_ORDER.indexOf(tab);
-    const toX = toIdx * SCREEN_WIDTH;
-    const fromX = TAB_ORDER.indexOf(activeTab) * SCREEN_WIDTH;
-
-    isTabSwitchingRef.current = true;
-    setActiveTab(tab);
-
-    const driver = new Animated.Value(fromX);
-    driver.addListener(({ value }) => {
-      pagerRef.current?.scrollTo({ x: value, animated: false });
-    });
-
-    Animated.timing(driver, {
-      toValue: toX,
-      duration: 400,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start(() => {
-      driver.removeAllListeners();
-      isTabSwitchingRef.current = false;
-    });
-  }, [activeTab]);
-
-  const onPagerScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-    {
-      useNativeDriver: false,
-      listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-        if (!isTabSwitchingRef.current) {
-          const pageFloat = e.nativeEvent.contentOffset.x / SCREEN_WIDTH;
-          const roundedIdx = Math.max(0, Math.min(Math.round(pageFloat), TAB_ORDER.length - 1));
-          const newTab = TAB_ORDER[roundedIdx];
-          setActiveTab(prev => prev === newTab ? prev : newTab);
-        }
-      },
-    }
-  );
-
-  const handleRefresh = useCallback(() => {
-    if (!isLoggedIn) { router.push('/login'); return; }
-    updateTabState(activeTab, { refreshing: true });
-    lastLoadedPageRef.current[activeTab] = 0;
-    fetchArticles(activeTab, 1, false);
-  }, [activeTab, isLoggedIn, router, fetchArticles, updateTabState]);
+  const handleTabChange = useCallback((key: string) => {
+    setActiveTab(key as TabKey);
+  }, []);
 
   const handleCardLike = useCallback(async (article: any) => {
     if (!isLoggedIn) { router.push('/login'); return; }
@@ -537,7 +333,6 @@ export default function Index() {
           likeCount: newCount,
         } as LikeChangedPayload);
       } else {
-        // 回滚
         setTabStates(prev => {
           const next = { ...prev };
           for (const key of TAB_ORDER) {
@@ -605,28 +400,28 @@ export default function Index() {
     />
   ), [router, handleCardLike]);
 
+  const tabs = TAB_ORDER.map(key => ({
+    key,
+    label: key === 'nearby' && cityDisplay ? cityDisplay : ({ following: '关注', recommend: '推荐', nearby: '附近' })[key],
+  }));
+
   return (
     <View style={styles.container}>
-      <Header
-        activeTab={activeTab}
+      <SwipeTabView
+        tabs={tabs}
+        initialIndex={1}
         onTabChange={handleTabChange}
-        nearbyCity={cityDisplay}
-        onSearch={navigateSearch}
-        tabCentersRef={tabCentersRef}
-        indicatorStyle={indicatorStyle}
-        scrollX={scrollX}
-        onTabsLayout={rebuildIndicator}
-      />
-
-      <ScrollView
-        ref={pagerRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={onPagerScroll}
-        contentOffset={{ x: SCREEN_WIDTH, y: 0 }}
-        style={styles.pager}
+        renderHeader={(tabBar) => (
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.menuButton}>
+              <Feather name="menu" size={24} color="black" />
+            </TouchableOpacity>
+            {tabBar}
+            <TouchableOpacity style={styles.searchButton} onPress={navigateSearch}>
+              <Ionicons name="search" size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
+        )}
       >
         {TAB_ORDER.map((tab) => (
           <TabContent
@@ -647,7 +442,7 @@ export default function Index() {
             renderItem={renderWaterfall}
           />
         ))}
-      </ScrollView>
+      </SwipeTabView>
     </View>
   );
 }
@@ -678,34 +473,6 @@ const styles = StyleSheet.create({
     right: Spacing.sm + 2,
     top: 13,
     zIndex: 1,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xl,
-  },
-  tabItem: {
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xs,
-    paddingBottom: INDICATOR_HEIGHT + 4,
-  },
-  tabText: {
-    fontSize: FontSize.md,
-    color: Colors.textTertiary,
-  },
-  tabTextActive: {},
-  tabIndicator: {
-    height: INDICATOR_HEIGHT,
-    borderRadius: INDICATOR_HEIGHT / 2,
-    backgroundColor: Colors.primary,
-  },
-  pager: {
-    flex: 1,
-  },
-  tabPage: {
-    width: SCREEN_WIDTH,
-    flex: 1,
   },
   emptyContainer: {
     flex: 1,

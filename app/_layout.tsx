@@ -39,6 +39,7 @@ export default function RootLayout() {
       }} />
       <Stack.Screen name="search" options={{ headerShown: false }} />
       <Stack.Screen name="profile-edit" options={{ title: '编辑资料', headerBackTitle: '返回' }} />
+      <Stack.Screen name="follow-list" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="chat/[conversationId]" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />

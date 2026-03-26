@@ -39,8 +39,8 @@ const GenderIcon = ({ gender }: { gender: number }) => {
     return null;
 };
 
-const StatItem = ({ count, label }: { count: number; label: string }) => (
-    <TouchableOpacity style={styles.statItem}>
+const StatItem = ({ count, label, onPress }: { count: number; label: string; onPress?: () => void }) => (
+    <TouchableOpacity style={styles.statItem} onPress={onPress} activeOpacity={onPress ? 0.7 : 1}>
         <Text style={styles.statCount}>{formatCount(count)}</Text>
         <Text style={styles.statLabel}>{label}</Text>
     </TouchableOpacity>
@@ -343,8 +343,10 @@ export default function MyScreen() {
                     </TouchableOpacity>
 
                     <View style={styles.statsRow}>
-                        <StatItem count={userStats.following_count} label="关注" />
-                        <StatItem count={userStats.followers_count} label="粉丝" />
+                        <StatItem count={userStats.following_count} label="关注"
+                            onPress={() => router.push({ pathname: '/follow-list', params: { tab: 'following' } } as any)} />
+                        <StatItem count={userStats.followers_count} label="粉丝"
+                            onPress={() => router.push({ pathname: '/follow-list', params: { tab: 'followers' } } as any)} />
                         <StatItem count={userStats.likes_received} label="获赞" />
                         <StatItem count={userStats.favorites_received} label="收藏" />
                     </View>

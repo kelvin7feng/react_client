@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
   TOGGLE_FOLLOW: '/togglefollow',
   FOLLOWERS: '/followers',
   FOLLOWING: '/following',
+  MUTUAL_FOLLOWS: '/mutualfollows',
 
   // 我的 Tab
   MY_FAVORITES: '/myfavorites',
