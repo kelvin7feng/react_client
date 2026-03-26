@@ -13,8 +13,10 @@ export const API_ENDPOINTS = {
   USER_STATS: '/userstats',
   UPDATE_USER_INFO: '/updateuserinfo',
 
-  // 推荐相关
+  // 首页 Tab
   RECOMMENDATIONS: '/recommendations',
+  FOLLOWING_ARTICLES: '/following-articles',
+  NEARBY_ARTICLES: '/nearby-articles',
 
   // 品牌相关
   GET_BRANDS: '/getbrands',

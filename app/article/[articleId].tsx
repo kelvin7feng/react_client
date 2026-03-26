@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as MediaLibrary from 'expo-media-library';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../../config/api';
@@ -210,6 +210,10 @@ export default function ArticleDetailScreen() {
                             return;
                         }
                         const imageUrl = article.images[0].image_url;
+                        if (!FileSystem.cacheDirectory) {
+                            Alert.alert('失败', '无法访问缓存目录');
+                            return;
+                        }
                         const fileUri = FileSystem.cacheDirectory + 'share_image.jpg';
                         const { uri } = await FileSystem.downloadAsync(imageUrl, fileUri);
                         await MediaLibrary.saveToLibraryAsync(uri);

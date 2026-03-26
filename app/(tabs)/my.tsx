@@ -19,6 +19,7 @@ import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { formatCount } from '../../config/utils';
 import { RemoteImage } from '../../components/RemoteImage';
+import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
 
 const GenderIcon = ({ gender }: { gender: number }) => {
     if (gender === 1) {
@@ -55,34 +56,6 @@ const EmptyTabContent = ({ label }: { label: string }) => (
         <Ionicons name="document-text-outline" size={48} color={Colors.borderDark} />
         <Text style={styles.emptyTabText}>暂无{label}内容</Text>
     </View>
-);
-
-const NoteItem = ({ item, onPress, onLike }: { item: any; onPress: (id: number) => void; onLike: (item: any) => void }) => (
-    <TouchableOpacity style={styles.noteItem} activeOpacity={0.8} onPress={() => onPress(item.id)}>
-        {item.image ? (
-            <RemoteImage uri={item.image} style={styles.noteImage} contentFit="cover" recyclingKey={String(item.id)} />
-        ) : (
-            <View style={[styles.noteImage, styles.noteImagePlaceholder]}>
-                <Ionicons name="image-outline" size={24} color={Colors.borderDark} />
-            </View>
-        )}
-        <View style={styles.noteContent}>
-            <Text style={styles.noteTitle} numberOfLines={2}>{item.title}</Text>
-            <View style={styles.noteFooter}>
-                <Text style={styles.noteAuthor} numberOfLines={1}>{item.author}</Text>
-                <TouchableOpacity
-                    style={styles.noteLikeBtn}
-                    onPress={(e) => { e.stopPropagation(); onLike(item); }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                    <Ionicons name={item.liked ? 'heart' : 'heart-outline'} size={14} color={item.liked ? Colors.primary : Colors.textSecondary} />
-                    <Text style={[styles.noteLikeText, item.liked && { color: Colors.primary }]}>
-                        {item.likes > 0 ? ` ${formatCount(item.likes)}` : ''}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    </TouchableOpacity>
 );
 
 const CommentListItem = ({ item, onPress }: { item: any; onPress: (id: number) => void }) => (
@@ -307,20 +280,18 @@ export default function MyScreen() {
 
     const renderWaterfall = (data: any[], onLike: (item: any) => void) => {
         if (data.length === 0) return <EmptyTabContent label={TAB_LABELS[activeTab]} />;
-        const cols: any[][] = [[], []];
-        data.forEach((item, i) => cols[i % 2].push(item));
         return (
-            <View style={styles.notesColumns}>
-                {cols.map((col, ci) => (
-                    <View key={ci} style={styles.notesColumn}>
-                        {col.map((item: any) => (
-                            <NoteItem key={item.id} item={item}
-                                onPress={(id) => router.push(`/article/${id}`)}
-                                onLike={onLike} />
-                        ))}
-                    </View>
-                ))}
-            </View>
+            <WaterfallTwoColumnGrid
+                items={data}
+                keyExtractor={(item: any) => String(item.id)}
+                renderItem={(item: any) => (
+                    <WaterfallArticleCard
+                        item={item}
+                        onPress={(id) => router.push(`/article/${id}`)}
+                        onLike={onLike}
+                    />
+                )}
+            />
         );
     };
 
@@ -425,17 +396,6 @@ const styles = StyleSheet.create({
     tabLoadingWrap: { paddingVertical: 60, alignItems: 'center' },
     emptyTab: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
     emptyTabText: { marginTop: Spacing.md, fontSize: FontSize.sm, color: Colors.textTertiary },
-    notesColumns: { flexDirection: 'row', paddingHorizontal: Spacing.xs, paddingTop: 5 },
-    notesColumn: { flex: 1, marginHorizontal: 3 },
-    noteItem: { backgroundColor: Colors.backgroundWhite, borderRadius: Spacing.sm - 2, marginBottom: Spacing.sm, ...Shadows.medium, overflow: 'hidden' },
-    noteImage: { width: '100%', aspectRatio: 3 / 4, backgroundColor: Colors.backgroundGray },
-    noteImagePlaceholder: { justifyContent: 'center', alignItems: 'center' },
-    noteContent: { padding: Spacing.sm },
-    noteTitle: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textPrimary, lineHeight: 18, marginBottom: Spacing.sm - 2 },
-    noteFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    noteAuthor: { fontSize: FontSize.xs, color: Colors.textSecondary, flex: 1 },
-    noteLikeBtn: { flexDirection: 'row', alignItems: 'center', borderRadius: Spacing.sm, paddingHorizontal: Spacing.sm - 2, paddingVertical: 2 },
-    noteLikeText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: '300' },
     commentsList: { padding: Spacing.md },
     myCommentItem: {
         flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md,
