@@ -44,6 +44,7 @@ export const API_ENDPOINTS = {
   // 我的 Tab
   MY_FAVORITES: '/myfavorites',
   MY_LIKED: '/myliked',
+  MY_VIEWED: '/myviewed',
   MY_COMMENTS: '/mycomments',
 
   // 搜索

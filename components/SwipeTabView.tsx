@@ -27,6 +27,7 @@ interface SwipeTabViewProps {
     initialIndex?: number;
     onTabChange?: (key: string, index: number) => void;
     renderHeader?: (tabBar: React.ReactNode) => React.ReactNode;
+    renderLayout?: (tabBar: React.ReactNode, pager: React.ReactNode) => React.ReactNode;
     tabBarStyle?: ViewStyle;
     children: React.ReactNode;
 }
@@ -36,6 +37,7 @@ export function SwipeTabView({
     initialIndex = 0,
     onTabChange,
     renderHeader,
+    renderLayout,
     tabBarStyle,
     children,
 }: SwipeTabViewProps) {
@@ -165,25 +167,33 @@ export function SwipeTabView({
 
     const childArray = React.Children.toArray(children);
 
+    const pager = (
+        <ScrollView
+            ref={pagerRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={onPagerScroll}
+            contentOffset={{ x: initialIndex * SCREEN_WIDTH, y: 0 }}
+            style={styles.pager}
+        >
+            {childArray.map((child, idx) => (
+                <View key={tabs[idx]?.key ?? idx} style={styles.page}>
+                    {child}
+                </View>
+            ))}
+        </ScrollView>
+    );
+
+    if (renderLayout) {
+        return <>{renderLayout(tabBar, pager)}</>;
+    }
+
     return (
         <>
             {renderHeader ? renderHeader(tabBar) : tabBar}
-            <ScrollView
-                ref={pagerRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                scrollEventThrottle={16}
-                onScroll={onPagerScroll}
-                contentOffset={{ x: initialIndex * SCREEN_WIDTH, y: 0 }}
-                style={styles.pager}
-            >
-                {childArray.map((child, idx) => (
-                    <View key={tabs[idx]?.key ?? idx} style={styles.page}>
-                        {child}
-                    </View>
-                ))}
-            </ScrollView>
+            {pager}
         </>
     );
 }

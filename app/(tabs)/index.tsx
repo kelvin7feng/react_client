@@ -21,6 +21,7 @@ import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
 import { SwipeTabView } from '../../components/SwipeTabView';
+import { SettingsDrawer } from '../../components/SettingsDrawer';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -141,6 +142,7 @@ export default function Index() {
   const [activeTab, setActiveTab] = useState<TabKey>('recommend');
   const [city, setCity] = useState<string>('');
   const [cityDisplay, setCityDisplay] = useState<string>('');
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const [tabStates, setTabStates] = useState<Record<TabKey, TabState>>({
     following: { ...initialTabState },
@@ -407,13 +409,14 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
+      <SettingsDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
       <SwipeTabView
         tabs={tabs}
         initialIndex={1}
         onTabChange={handleTabChange}
         renderHeader={(tabBar) => (
           <View style={styles.header}>
-            <TouchableOpacity style={styles.menuButton}>
+            <TouchableOpacity style={styles.menuButton} onPress={() => setDrawerVisible(true)}>
               <Feather name="menu" size={24} color="black" />
             </TouchableOpacity>
             {tabBar}

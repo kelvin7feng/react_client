@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Text,
     View,
@@ -7,10 +7,13 @@ import {
     SafeAreaView,
     Platform,
     ActivityIndicator,
-    Alert,
     TouchableOpacity,
+    Dimensions,
+    Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../../config/api';
@@ -20,6 +23,18 @@ import { useAuth } from '../../config/auth';
 import { formatCount } from '../../config/utils';
 import { RemoteImage } from '../../components/RemoteImage';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
+import { SwipeTabView } from '../../components/SwipeTabView';
+import { SettingsDrawer } from '../../components/SettingsDrawer';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const TABS = [
+    { key: 'notes', label: '笔记' },
+    { key: 'comments', label: '评论' },
+    { key: 'favorites', label: '收藏' },
+    { key: 'liked', label: '赞过' },
+    { key: 'viewed', label: '看过' },
+];
 
 const GenderIcon = ({ gender }: { gender: number }) => {
     if (gender === 1) {
@@ -46,11 +61,6 @@ const StatItem = ({ count, label, onPress }: { count: number; label: string; onP
     </TouchableOpacity>
 );
 
-const TAB_KEYS = ['notes', 'comments', 'favorites', 'liked'] as const;
-const TAB_LABELS = { notes: '笔记', comments: '评论', favorites: '收藏', liked: '赞过' };
-
-type TabKey = typeof TAB_KEYS[number];
-
 const EmptyTabContent = ({ label }: { label: string }) => (
     <View style={styles.emptyTab}>
         <Ionicons name="document-text-outline" size={48} color={Colors.borderDark} />
@@ -72,28 +82,54 @@ const CommentListItem = ({ item, onPress }: { item: any; onPress: (id: number) =
     </TouchableOpacity>
 );
 
-const formatTime = (timeStr: string) => {
-    if (!timeStr) return '';
-    try {
-        const date = new Date(timeStr);
-        return date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
-    } catch { return timeStr; }
-};
-
 export default function MyScreen() {
     const router = useRouter();
     const { userId, isLoggedIn } = useAuth();
+    const insets = useSafeAreaInsets();
     const [userData, setUserData] = useState<any>(null);
     const [userStats, setUserStats] = useState({ following_count: 0, followers_count: 0, likes_received: 0, favorites_received: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<TabKey>('notes');
+    const [tabDataLoading, setTabDataLoading] = useState(true);
 
     const [myNotes, setMyNotes] = useState<any[]>([]);
     const [myFavorites, setMyFavorites] = useState<any[]>([]);
     const [myLiked, setMyLiked] = useState<any[]>([]);
+    const [myViewed, setMyViewed] = useState<any[]>([]);
     const [myCommentsList, setMyCommentsList] = useState<any[]>([]);
-    const [tabLoading, setTabLoading] = useState(false);
+    const [tabBarH, setTabBarH] = useState(0);
+    const [profileH, setProfileH] = useState(0);
+    const [drawerVisible, setDrawerVisible] = useState(false);
+    const scrollY = useRef(new Animated.Value(0)).current;
+    const currentOffsetRef = useRef(0);
+    const tabScrollRefs = useRef<Record<string, ScrollView | null>>({});
+
+    const safeProfileH = Math.max(profileH, 1);
+    const totalHeaderH = profileH + tabBarH;
+
+    const headerTranslateY = scrollY.interpolate({
+        inputRange: [0, safeProfileH],
+        outputRange: [0, -safeProfileH],
+        extrapolate: 'clamp',
+    });
+
+    const scrollHandler = Animated.event(
+        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+        {
+            useNativeDriver: false,
+            listener: (e: any) => {
+                currentOffsetRef.current = e.nativeEvent.contentOffset.y;
+            },
+        },
+    );
+
+    const handleMyTabChange = useCallback((key: string) => {
+        if (profileH > 0 && currentOffsetRef.current >= profileH) {
+            setTimeout(() => {
+                tabScrollRefs.current[key]?.scrollTo({ y: profileH, animated: false });
+            }, 50);
+        }
+    }, [profileH]);
 
     const fetchUserData = useCallback(async () => {
         if (!userId) return;
@@ -111,12 +147,6 @@ export default function MyScreen() {
         }
     }, [userId]);
 
-    useEffect(() => {
-        if (!userId) return;
-        setLoading(true);
-        fetchUserData();
-    }, [fetchUserData, userId]);
-
     const fetchStats = useCallback(async () => {
         if (!userId) return;
         try {
@@ -126,49 +156,38 @@ export default function MyScreen() {
         } catch {}
     }, [userId]);
 
-    const fetchMyNotes = useCallback(async () => {
+    const fetchAllTabData = useCallback(async () => {
         if (!userId) return;
-        setTabLoading(true);
-        try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, {
-                page: 1, author_id: userId, user_id: userId,
-            }));
-            if (response.ok) {
-                const data = await response.json();
-                setMyNotes(Array.isArray(data) ? data : []);
-            }
-        } catch {} finally { setTabLoading(false); }
+        const [notesRes, commentsRes, favoritesRes, likedRes, viewedRes] = await Promise.allSettled([
+            fetch(buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, { page: 1, author_id: userId, user_id: userId })).then(r => r.json()),
+            fetch(buildApiUrl(API_ENDPOINTS.MY_COMMENTS, { user_id: userId, page: 1 })).then(r => r.json()),
+            fetch(buildApiUrl(API_ENDPOINTS.MY_FAVORITES, { user_id: userId, page: 1 })).then(r => r.json()),
+            fetch(buildApiUrl(API_ENDPOINTS.MY_LIKED, { user_id: userId, page: 1 })).then(r => r.json()),
+            fetch(buildApiUrl(API_ENDPOINTS.MY_VIEWED, { user_id: userId, page: 1 })).then(r => r.json()),
+        ]);
+        if (notesRes.status === 'fulfilled') {
+            const d = notesRes.value;
+            setMyNotes(Array.isArray(d) ? d : (d.data || []));
+        }
+        if (commentsRes.status === 'fulfilled' && commentsRes.value.code === 0) setMyCommentsList(commentsRes.value.data || []);
+        if (favoritesRes.status === 'fulfilled' && favoritesRes.value.code === 0) setMyFavorites(favoritesRes.value.data || []);
+        if (likedRes.status === 'fulfilled' && likedRes.value.code === 0) setMyLiked(likedRes.value.data || []);
+        if (viewedRes.status === 'fulfilled' && viewedRes.value.code === 0) setMyViewed(viewedRes.value.data || []);
+        setTabDataLoading(false);
     }, [userId]);
 
-    const fetchMyFavorites = useCallback(async () => {
+    useEffect(() => {
         if (!userId) return;
-        setTabLoading(true);
-        try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.MY_FAVORITES, { user_id: userId, page: 1 }));
-            const result = await response.json();
-            if (result.code === 0) setMyFavorites(result.data || []);
-        } catch {} finally { setTabLoading(false); }
-    }, [userId]);
+        setLoading(true);
+        fetchUserData();
+    }, [fetchUserData, userId]);
 
-    const fetchMyLiked = useCallback(async () => {
+    useFocusEffect(useCallback(() => {
         if (!userId) return;
-        setTabLoading(true);
-        try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.MY_LIKED, { user_id: userId, page: 1 }));
-            const result = await response.json();
-            if (result.code === 0) setMyLiked(result.data || []);
-        } catch {} finally { setTabLoading(false); }
-    }, [userId]);
-
-    const fetchMyComments = useCallback(async () => {
-        if (!userId) return;
-        setTabLoading(true);
-        try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.MY_COMMENTS, { user_id: userId, page: 1 }));
-            const result = await response.json();
-            if (result.code === 0) setMyCommentsList(result.data || []);
-        } catch {} finally { setTabLoading(false); }
-    }, [userId]);
+        fetchUserData();
+        fetchStats();
+        fetchAllTabData();
+    }, [userId, fetchUserData, fetchStats, fetchAllTabData]));
 
     const handleNoteLike = useCallback(async (article: any) => {
         const newLiked = !article.liked;
@@ -216,30 +235,10 @@ export default function MyScreen() {
             setMyNotes(update);
             setMyFavorites(update);
             setMyLiked(update);
+            setMyViewed(update);
         });
         return off;
     }, []);
-
-    useFocusEffect(useCallback(() => {
-        if (!userId) return;
-        fetchUserData();
-        fetchStats();
-        switch (activeTab) {
-            case 'notes': fetchMyNotes(); break;
-            case 'favorites': fetchMyFavorites(); break;
-            case 'liked': fetchMyLiked(); break;
-            case 'comments': fetchMyComments(); break;
-        }
-    }, [userId, activeTab, fetchUserData, fetchStats, fetchMyNotes, fetchMyFavorites, fetchMyLiked, fetchMyComments]));
-
-    useEffect(() => {
-        switch (activeTab) {
-            case 'notes': fetchMyNotes(); break;
-            case 'favorites': fetchMyFavorites(); break;
-            case 'liked': fetchMyLiked(); break;
-            case 'comments': fetchMyComments(); break;
-        }
-    }, [activeTab]);
 
     if (!isLoggedIn) {
         return (
@@ -278,8 +277,11 @@ export default function MyScreen() {
         );
     }
 
-    const renderWaterfall = (data: any[], onLike: (item: any) => void) => {
-        if (data.length === 0) return <EmptyTabContent label={TAB_LABELS[activeTab]} />;
+    const renderWaterfall = (data: any[], onLike: (item: any) => void, label: string) => {
+        if (tabDataLoading) {
+            return <View style={styles.tabLoadingWrap}><ActivityIndicator size="small" color={Colors.textTertiary} /></View>;
+        }
+        if (data.length === 0) return <EmptyTabContent label={label} />;
         return (
             <WaterfallTwoColumnGrid
                 items={data}
@@ -295,88 +297,144 @@ export default function MyScreen() {
         );
     };
 
-    const renderTabContent = () => {
-        if (tabLoading) {
-            return <View style={styles.tabLoadingWrap}><ActivityIndicator size="small" color={Colors.textTertiary} /></View>;
-        }
-        switch (activeTab) {
-            case 'notes':
-                return renderWaterfall(myNotes, handleNoteLike);
-            case 'favorites':
-                return renderWaterfall(myFavorites, (item) => handleListLike(item, setMyFavorites));
-            case 'liked':
-                return renderWaterfall(myLiked, (item) => handleListLike(item, setMyLiked));
-            case 'comments':
-                if (myCommentsList.length === 0) return <EmptyTabContent label="评论" />;
-                return (
-                    <View style={styles.commentsList}>
-                        {myCommentsList.map((item: any) => (
-                            <CommentListItem key={item.id} item={item}
-                                onPress={(id) => router.push(`/article/${id}`)} />
-                        ))}
+    const profileSection = (
+        <LinearGradient
+            colors={['#ededed', '#e8e8e8', '#f0f0f0']}
+            style={styles.headerGradient}
+            onLayout={(e) => setProfileH(e.nativeEvent.layout.height)}
+        >
+            <TouchableOpacity style={styles.profileHeader} activeOpacity={0.7}
+                onPress={() => router.push('/profile-edit' as any)}>
+                <RemoteImage
+                    uri={userData.avatar || 'https://picsum.photos/200/200?random=1'}
+                    style={styles.avatar}
+                    contentFit="cover"
+                />
+                <View style={styles.profileInfo}>
+                    <View style={styles.nameRow}>
+                        <GenderIcon gender={userData.gender} />
+                        <Text style={styles.name}>{userData.username || '未知用户'}</Text>
                     </View>
-                );
-        }
+                    <Text style={styles.signature} numberOfLines={2}>
+                        {userData.signature || '暂无个性签名'}
+                    </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+            </TouchableOpacity>
+
+            <View style={styles.statsRow}>
+                <StatItem count={userStats.following_count} label="关注"
+                    onPress={() => router.push({ pathname: '/follow-list', params: { tab: 'following' } } as any)} />
+                <StatItem count={userStats.followers_count} label="粉丝"
+                    onPress={() => router.push({ pathname: '/follow-list', params: { tab: 'followers' } } as any)} />
+                <StatItem count={userStats.likes_received} label="获赞" />
+                <StatItem count={userStats.favorites_received} label="收藏" />
+            </View>
+        </LinearGradient>
+    );
+
+    const tabScrollProps = {
+        style: styles.tabPage,
+        contentContainerStyle: { paddingTop: totalHeaderH, minHeight: totalHeaderH + SCREEN_HEIGHT },
+        showsVerticalScrollIndicator: false,
+        onScroll: scrollHandler,
+        scrollEventThrottle: 16,
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
-            <ScrollView style={styles.scrollView} stickyHeaderIndices={[1]}>
-                <LinearGradient colors={['#ededed', '#e8e8e8', '#f0f0f0']} style={styles.headerGradient}>
-                    <TouchableOpacity style={styles.profileHeader} activeOpacity={0.7}
-                        onPress={() => router.push('/profile-edit' as any)}>
-                        <RemoteImage
-                            uri={userData.avatar || 'https://picsum.photos/200/200?random=1'}
-                            style={styles.avatar}
-                            contentFit="cover"
-                        />
-                        <View style={styles.profileInfo}>
-                            <View style={styles.nameRow}>
-                                <GenderIcon gender={userData.gender} />
-                                <Text style={styles.name}>{userData.username || '未知用户'}</Text>
+        <View style={styles.safeArea}>
+            <View style={[styles.topBar, { paddingTop: insets.top + Spacing.sm }]}>
+                <TouchableOpacity style={styles.topBarBtn} onPress={() => setDrawerVisible(true)}>
+                    <Feather name="menu" size={24} color={Colors.textPrimary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.topBarBtn}>
+                    <Ionicons name="scan-outline" size={22} color={Colors.textPrimary} />
+                </TouchableOpacity>
+            </View>
+            <SettingsDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+
+            <SwipeTabView
+                tabs={TABS}
+                onTabChange={handleMyTabChange}
+                renderLayout={(tabBar, pager) => (
+                    <View style={styles.pagerContainer}>
+                        <Animated.View style={[styles.collapsibleHeader, {
+                            transform: [{ translateY: headerTranslateY }],
+                        }]}>
+                            {profileSection}
+                            <View style={styles.tabBarMask}
+                                onLayout={(e) => setTabBarH(e.nativeEvent.layout.height)}>
+                                <View style={styles.tabBarWrapper}>
+                                    {tabBar}
+                                </View>
                             </View>
-                            <Text style={styles.signature} numberOfLines={2}>
-                                {userData.signature || '暂无个性签名'}
-                            </Text>
+                        </Animated.View>
+                        {pager}
+                    </View>
+                )}
+            >
+                <ScrollView ref={(r) => { tabScrollRefs.current['notes'] = r; }} {...tabScrollProps}>
+                    {renderWaterfall(myNotes, handleNoteLike, '笔记')}
+                </ScrollView>
+
+                <ScrollView ref={(r) => { tabScrollRefs.current['comments'] = r; }} {...tabScrollProps}>
+                    {tabDataLoading ? (
+                        <View style={styles.tabLoadingWrap}><ActivityIndicator size="small" color={Colors.textTertiary} /></View>
+                    ) : myCommentsList.length === 0 ? (
+                        <EmptyTabContent label="评论" />
+                    ) : (
+                        <View style={styles.commentsList}>
+                            {myCommentsList.map((item: any) => (
+                                <CommentListItem key={item.id} item={item}
+                                    onPress={(id) => router.push(`/article/${id}`)} />
+                            ))}
                         </View>
-                        <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
-                    </TouchableOpacity>
+                    )}
+                </ScrollView>
 
-                    <View style={styles.statsRow}>
-                        <StatItem count={userStats.following_count} label="关注"
-                            onPress={() => router.push({ pathname: '/follow-list', params: { tab: 'following' } } as any)} />
-                        <StatItem count={userStats.followers_count} label="粉丝"
-                            onPress={() => router.push({ pathname: '/follow-list', params: { tab: 'followers' } } as any)} />
-                        <StatItem count={userStats.likes_received} label="获赞" />
-                        <StatItem count={userStats.favorites_received} label="收藏" />
-                    </View>
-                </LinearGradient>
+                <ScrollView ref={(r) => { tabScrollRefs.current['favorites'] = r; }} {...tabScrollProps}>
+                    {renderWaterfall(myFavorites, (item) => handleListLike(item, setMyFavorites), '收藏')}
+                </ScrollView>
 
-                <View style={styles.tabBarWrapper}>
-                    <View style={styles.tabBar}>
-                        {TAB_KEYS.map((key) => (
-                            <TouchableOpacity key={key} style={styles.tabItem} onPress={() => setActiveTab(key)}>
-                                <Text style={[styles.tabText, activeTab === key && styles.tabTextActive]}>
-                                    {TAB_LABELS[key]}
-                                </Text>
-                                {activeTab === key && <View style={styles.tabIndicator} />}
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
+                <ScrollView ref={(r) => { tabScrollRefs.current['liked'] = r; }} {...tabScrollProps}>
+                    {renderWaterfall(myLiked, (item) => handleListLike(item, setMyLiked), '赞过')}
+                </ScrollView>
 
-                <View style={styles.tabContent}>
-                    {renderTabContent()}
-                </View>
-            </ScrollView>
-        </SafeAreaView>
+                <ScrollView ref={(r) => { tabScrollRefs.current['viewed'] = r; }} {...tabScrollProps}>
+                    {renderWaterfall(myViewed, (item) => handleListLike(item, setMyViewed), '看过')}
+                </ScrollView>
+            </SwipeTabView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#f0f0f0', paddingTop: Platform.OS === 'android' ? 25 : 0 },
-    scrollView: { flex: 1 },
-    headerGradient: { paddingTop: Platform.OS === 'ios' ? Spacing.md : Spacing.lg, paddingBottom: Spacing.lg },
+    safeArea: { flex: 1, backgroundColor: '#ededed' },
+    topBar: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.sm,
+        backgroundColor: '#ededed',
+        zIndex: 20,
+    },
+    topBarBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    pagerContainer: { flex: 1 },
+    collapsibleHeader: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+    },
+    headerGradient: { paddingBottom: Spacing.lg },
     profileHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.lg, paddingHorizontal: Spacing.xl },
     avatar: { width: 70, height: 70, borderRadius: 35, borderWidth: 2, borderColor: Colors.white, ...Shadows.large },
     profileInfo: { flex: 1, marginLeft: Spacing.lg, justifyContent: 'center' },
@@ -388,13 +446,19 @@ const styles = StyleSheet.create({
     statItem: { marginRight: Spacing.xxl, alignItems: 'center' },
     statCount: { fontSize: FontSize.lg, fontWeight: 'bold', color: Colors.textPrimary },
     statLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
-    tabBarWrapper: { backgroundColor: Colors.backgroundWhite },
-    tabBar: { flexDirection: 'row', backgroundColor: Colors.backgroundWhite, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border },
-    tabItem: { flex: 1, alignItems: 'center', paddingVertical: Spacing.md, position: 'relative' },
-    tabText: { fontSize: FontSize.md, color: Colors.textSecondary },
-    tabTextActive: { color: Colors.textPrimary, fontWeight: '600' },
-    tabIndicator: { position: 'absolute', bottom: 0, width: 24, height: 2.5, borderRadius: 2, backgroundColor: Colors.primary },
-    tabContent: { backgroundColor: Colors.backgroundWhite, minHeight: 400 },
+    tabBarMask: {
+        backgroundColor: '#ededed',
+    },
+    tabBarWrapper: {
+        backgroundColor: Colors.backgroundWhite,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: Colors.border,
+        paddingTop: Spacing.md,
+        paddingBottom: Spacing.xs,
+    },
+    tabPage: { flex: 1, backgroundColor: Colors.backgroundWhite },
     tabLoadingWrap: { paddingVertical: 60, alignItems: 'center' },
     emptyTab: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
     emptyTabText: { marginTop: Spacing.md, fontSize: FontSize.sm, color: Colors.textTertiary },

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, Image, ScrollView,
-    StyleSheet, SafeAreaView, Alert, ActivityIndicator, Platform,
+    StyleSheet, SafeAreaView, Alert, ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -138,26 +138,6 @@ export default function ProfileEditScreen() {
                 <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
                     <Text style={s.saveBtnText}>{saving ? '保存中...' : '保存'}</Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={s.logoutBtn}
-                    onPress={() => {
-                        Alert.alert('退出登录', '确定要退出当前账号吗？', [
-                            { text: '取消', style: 'cancel' },
-                            {
-                                text: '退出', style: 'destructive',
-                                onPress: async () => {
-                                    await auth.logout();
-                                    router.dismissAll();
-                                    router.replace('/(tabs)');
-                                },
-                            },
-                        ]);
-                    }}
-                >
-                    <Ionicons name="log-out-outline" size={18} color={Colors.error} />
-                    <Text style={s.logoutText}>退出登录</Text>
-                </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>
     );
@@ -189,10 +169,4 @@ const s = StyleSheet.create({
         alignItems: 'center', marginTop: Spacing.lg,
     },
     saveBtnText: { color: Colors.white, fontSize: FontSize.lg, fontWeight: '600' },
-    logoutBtn: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        marginTop: Spacing.xxl + Spacing.xl, paddingVertical: Spacing.md,
-        borderRadius: 8, borderWidth: 1, borderColor: Colors.error,
-    },
-    logoutText: { marginLeft: Spacing.sm, fontSize: FontSize.md, color: Colors.error, fontWeight: '500' },
 });
