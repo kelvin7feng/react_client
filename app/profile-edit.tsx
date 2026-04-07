@@ -75,6 +75,12 @@ export default function ProfileEditScreen() {
             });
             const result = await response.json();
             if (result.code === 0) {
+                const newAvatar = result.data?.avatar || avatarUri;
+                await auth.saveAccountInfo({
+                    userId: auth.userId!,
+                    username: username.trim(),
+                    avatar: newAvatar,
+                });
                 Alert.alert('成功', '资料已更新', [{ text: '确定', onPress: () => router.back() }]);
             } else {
                 Alert.alert('失败', result.msg || '更新失败');

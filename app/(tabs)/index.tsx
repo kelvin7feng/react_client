@@ -416,7 +416,10 @@ export default function Index() {
         onTabChange={handleTabChange}
         renderHeader={(tabBar) => (
           <View style={styles.header}>
-            <TouchableOpacity style={styles.menuButton} onPress={() => setDrawerVisible(true)}>
+            <TouchableOpacity style={styles.menuButton} onPress={() => {
+              if (!isLoggedIn) { router.push('/login'); return; }
+              setDrawerVisible(true);
+            }}>
               <Feather name="menu" size={24} color="black" />
             </TouchableOpacity>
             {tabBar}

@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
-import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
+import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
 
@@ -93,6 +93,17 @@ export default function LoginScreen() {
             const result = await response.json();
             if (result.code === 0) {
                 await auth.login(result.data.user_id, result.data.token);
+                try {
+                    const infoRes = await fetch(buildApiUrl(API_ENDPOINTS.GET_BASIC_INFO, { id: result.data.user_id }));
+                    const infoResult = await infoRes.json();
+                    if (infoResult.code === 0 && infoResult.data) {
+                        await auth.saveAccountInfo({
+                            userId: result.data.user_id,
+                            username: infoResult.data.username || '',
+                            avatar: infoResult.data.avatar || '',
+                        });
+                    }
+                } catch {}
                 router.back();
             } else {
                 Alert.alert('失败', result.msg);

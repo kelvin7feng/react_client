@@ -183,11 +183,14 @@ export default function MyScreen() {
     }, [fetchUserData, userId]);
 
     useFocusEffect(useCallback(() => {
-        if (!userId) return;
+        if (!isLoggedIn) {
+            router.replace('/login');
+            return;
+        }
         fetchUserData();
         fetchStats();
         fetchAllTabData();
-    }, [userId, fetchUserData, fetchStats, fetchAllTabData]));
+    }, [isLoggedIn, userId, fetchUserData, fetchStats, fetchAllTabData]));
 
     const handleNoteLike = useCallback(async (article: any) => {
         const newLiked = !article.liked;
@@ -344,7 +347,10 @@ export default function MyScreen() {
     return (
         <View style={styles.safeArea}>
             <View style={[styles.topBar, { paddingTop: insets.top + Spacing.sm }]}>
-                <TouchableOpacity style={styles.topBarBtn} onPress={() => setDrawerVisible(true)}>
+                <TouchableOpacity style={styles.topBarBtn} onPress={() => {
+                    if (!isLoggedIn) { router.push('/login'); return; }
+                    setDrawerVisible(true);
+                }}>
                     <Feather name="menu" size={24} color={Colors.textPrimary} />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.topBarBtn}>
