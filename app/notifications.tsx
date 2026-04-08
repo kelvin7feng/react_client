@@ -8,6 +8,7 @@ import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../config/api';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
+import { navigateToUserProfile } from '../config/utils';
 import { RemoteImage } from '../components/RemoteImage';
 
 type NotificationType = 'likes' | 'follows' | 'comments';
@@ -107,15 +108,24 @@ export default function NotificationsScreen() {
         const cfg = MSG_TYPE_CONFIG[item.type] || MSG_TYPE_CONFIG.system;
         return (
             <TouchableOpacity style={[s.msgItem, !item.is_read && s.msgUnread]} onPress={() => handleMessagePress(item)}>
-                <View style={s.msgIconWrap}>
+                <TouchableOpacity
+                    style={s.msgIconWrap}
+                    onPress={() => item.sender_id && navigateToUserProfile(router, item.sender_id, userId ?? null)}
+                    activeOpacity={0.7}
+                >
                     <RemoteImage uri={item.sender_avatar || 'https://picsum.photos/80/80'} style={s.msgAvatar} contentFit="cover" />
                     <View style={[s.msgTypeBadge, { backgroundColor: cfg.color }]}>
                         <Ionicons name={cfg.icon as any} size={10} color="#fff" />
                     </View>
-                </View>
+                </TouchableOpacity>
                 <View style={s.msgBody}>
                     <View style={s.msgHeader}>
-                        <Text style={s.msgSender} numberOfLines={1}>{item.sender_name}</Text>
+                        <TouchableOpacity
+                            onPress={() => item.sender_id && navigateToUserProfile(router, item.sender_id, userId ?? null)}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={s.msgSender} numberOfLines={1}>{item.sender_name}</Text>
+                        </TouchableOpacity>
                         <Text style={s.msgTime}>{formatTime(item.created_time)}</Text>
                     </View>
                     <Text style={s.msgContent} numberOfLines={2}>{cfg.label}{item.content ? `：${item.content}` : ''}</Text>

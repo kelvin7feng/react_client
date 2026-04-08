@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     SafeAreaView,
     View,
@@ -6,7 +6,6 @@ import {
     TextInput,
     TouchableOpacity,
     StyleSheet,
-    ScrollView,
     SectionList,
     ActivityIndicator,
     Alert,
@@ -18,16 +17,16 @@ import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { RemoteImage } from '../../components/RemoteImage';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const priceFilters = [
-    { id: 1, label: "1-2千" },
-    { id: 2, label: "2-3千" },
-    { id: 3, label: "3-5千" },
-    { id: 4, label: ">5千" },
+    { id: 1, label: '1-2千', minPrice: 1000, maxPrice: 2000 },
+    { id: 2, label: '2-3千', minPrice: 2000, maxPrice: 3000 },
+    { id: 3, label: '3-5千', minPrice: 3000, maxPrice: 5000 },
+    { id: 4, label: '>5千', minPrice: 5000, maxPrice: 999999 },
 ];
 
-const BrandImage = ({ uri, style }) => {
+const BrandImage = ({ uri, style }: { uri: string; style: any }) => {
     const [imageError, setImageError] = useState(false);
 
     if (imageError || !uri) {
@@ -51,13 +50,13 @@ const BrandImage = ({ uri, style }) => {
 export default function SelectionScreen() {
     const router = useRouter();
 
-    const [brands, setBrands] = useState([]);
-    const [popularBrands, setPopularBrands] = useState([]);
+    const [allBrands, setAllBrands] = useState<any[]>([]);
+    const [brands, setBrands] = useState<any[]>([]);
+    const [popularBrands, setPopularBrands] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedPrice, setSelectedPrice] = useState(null);
     const [activeLetter, setActiveLetter] = useState('');
-    const sectionListRef = useRef(null);
+    const sectionListRef = useRef<SectionList>(null);
     const isScrolling = useRef(false);
 
     useEffect(() => {
@@ -68,45 +67,47 @@ export default function SelectionScreen() {
 
                 if (data.code === 0 && Array.isArray(data.data)) {
                     const processedBrands = data.data
-                        .filter(brand => {
-                            if (!brand || typeof brand.id === 'undefined') {
-                                console.warn("--- Found problematic brand object, filtering it out: ---", brand);
-                                return false;
-                            }
-                            return true;
-                        })
-                        .map(brand => ({
+                        .filter((brand: any) => brand && typeof brand.id !== 'undefined')
+                        .map((brand: any) => ({
                             ...brand,
                             initial: brand.pinyin ? brand.pinyin.charAt(0).toUpperCase() : '#'
                         }));
 
-
+                    setAllBrands(processedBrands);
                     const groupedData = groupBrandsByInitial(processedBrands);
                     setBrands(groupedData);
                     setPopularBrands(processedBrands.slice(0, 4));
-
 
                     if (groupedData.length > 0) {
                         setActiveLetter(groupedData[0].title);
                     }
                 } else {
-                    Alert.alert('错误', data.msg || '获取品牌数据失败或数据格式不正确');
+                    Alert.alert('错误', data.msg || '获取品牌数据失败');
                 }
-
-                setLoading(false);
-            } catch (error) {
+            } catch {
                 Alert.alert('错误', '网络请求失败，请检查网络连接');
+            } finally {
                 setLoading(false);
             }
         };
 
-
         fetchBrands();
     }, []);
 
+    const filteredBrands = useMemo(() => {
+        if (!searchQuery.trim()) return brands;
 
-    const groupBrandsByInitial = (brandsData) => {
-        const grouped = {};
+        const query = searchQuery.trim().toLowerCase();
+        const filtered = allBrands.filter(brand =>
+            brand.name?.toLowerCase().includes(query) ||
+            brand.pinyin?.toLowerCase().includes(query) ||
+            brand.english_name?.toLowerCase().includes(query)
+        );
+        return groupBrandsByInitial(filtered);
+    }, [searchQuery, allBrands, brands]);
+
+    const groupBrandsByInitial = (brandsData: any[]) => {
+        const grouped: Record<string, any[]> = {};
         brandsData.forEach(brand => {
             const initial = brand.initial;
             if (!grouped[initial]) {
@@ -120,57 +121,62 @@ export default function SelectionScreen() {
         }));
     };
 
-    const handleBrandPress = (brand) => {
+    const handleBrandPress = (brand: any) => {
         router.push({
             pathname: `/brand/${brand.id}`,
             params: { brandName: brand.name }
         });
     };
 
-    const handlePriceFilterPress = (filter) => {
-        setSelectedPrice(filter.id === selectedPrice ? null : filter.id);
+    const handlePriceFilterPress = (filter: typeof priceFilters[0]) => {
+        router.push({
+            pathname: '/price-vehicles',
+            params: {
+                minPrice: String(filter.minPrice),
+                maxPrice: String(filter.maxPrice),
+                title: filter.label,
+            }
+        });
     };
 
-    const handleLetterPress = (letter) => {
-        const sectionIndex = brands.findIndex(section => section.title === letter);
+    const handleLetterPress = (letter: string) => {
+        const sectionIndex = filteredBrands.findIndex(section => section.title === letter);
 
-        Alert.alert('点击分类', `您选择了: ${sectionIndex}`);
         if (sectionListRef.current && sectionIndex !== -1) {
             setActiveLetter(letter);
+            isScrolling.current = true;
 
-        //     // 标记开始滚动，防止 onViewableItemsChanged 干扰
-        //     isScrolling.current = true;
+            sectionListRef.current.scrollToLocation({
+                sectionIndex,
+                itemIndex: 0,
+                viewPosition: 0,
+                animated: false,
+            });
 
-        //     // 滚动到对应的分区
-        // sectionListRef.current.scrollToLocation({
-        //     sectionIndex: sectionIndex,
-        //     itemIndex: 0,       // 滚动到该分区的第一个项目
-        //     viewPosition: 0,    // 0 = 顶部
-        //     animated: false,    // **关键改动**：将 animated 设置为 false 可以极大地提高滚动的准确性
-        // });
-
-        //     // 在滚动动画结束后，恢复滚动监听
-        //     setTimeout(() => {
-        //         isScrolling.current = false;
-        //     }, 500);
+            setTimeout(() => {
+                isScrolling.current = false;
+            }, 500);
         }
     };
 
-    const handleViewableItemsChanged = useCallback(({ viewableItems }) => {
-        if (isScrolling.current || !viewableItems || viewableItems.length === 0) {
-            return;
+    const handleViewableItemsChanged = useCallback(({ viewableItems }: any) => {
+        if (isScrolling.current || !viewableItems || viewableItems.length === 0) return;
+        const firstSection = viewableItems[0]?.section?.title;
+        if (firstSection) {
+            setActiveLetter(firstSection);
         }
-        const firstVisibleSectionTitle = viewableItems[0].section.title;
-        if (firstVisibleSectionTitle && activeLetter !== firstVisibleSectionTitle) {
-            setActiveLetter(firstVisibleSectionTitle);
-        }
-    }, [activeLetter]);
+    }, []);
 
     const viewabilityConfig = useRef({
         itemVisiblePercentThreshold: 1,
         waitForInteraction: true,
     }).current;
 
+    const handleSearchClear = () => {
+        setSearchQuery('');
+    };
+
+    const isSearching = searchQuery.trim().length > 0;
 
     const renderPopularBrands = () => (
         <View style={styles.headerListWrapper}>
@@ -197,12 +203,10 @@ export default function SelectionScreen() {
                 {priceFilters.map(filter => (
                     <TouchableOpacity
                         key={filter.id}
-                        style={[styles.headerItem, selectedPrice === filter.id && styles.selectedPriceFilter]}
+                        style={styles.headerItem}
                         onPress={() => handlePriceFilterPress(filter)}
                     >
-                        <Text style={[styles.priceFilterText, selectedPrice === filter.id && styles.selectedPriceFilterText]}>
-                            {filter.label}
-                        </Text>
+                        <Text style={styles.priceFilterText}>{filter.label}</Text>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -210,7 +214,8 @@ export default function SelectionScreen() {
     );
 
     const renderAlphabetNav = () => {
-        const letters = brands.map(section => section.title);
+        const letters = filteredBrands.map(section => section.title);
+        if (letters.length === 0) return null;
         return (
             <View style={styles.alphabetNav}>
                 {letters.map(letter => (
@@ -228,22 +233,20 @@ export default function SelectionScreen() {
         );
     };
 
-    const renderBrandItem = ({ item }) => {
-        if (!item) {
-            return null;
-        }
+    const renderBrandItem = ({ item }: { item: any }) => {
+        if (!item) return null;
         return (
             <TouchableOpacity style={styles.brandItem} onPress={() => handleBrandPress(item)}>
                 <BrandImage uri={item.logo_url} style={styles.brandItemLogo} />
                 <View style={styles.brandInfo}>
                     <Text style={styles.brandItemName}>{item.name}</Text>
-                    {item.english_name && <Text style={styles.brandEnglishName}>{item.english_name}</Text>}
+                    {item.english_name ? <Text style={styles.brandEnglishName}>{item.english_name}</Text> : null}
                 </View>
             </TouchableOpacity>
         );
     };
 
-    const renderSectionHeader = ({ section }) => (
+    const renderSectionHeader = ({ section }: { section: any }) => (
         <View style={styles.sectionHeader}>
             <Text style={styles.sectionHeaderText}>{section.title}</Text>
         </View>
@@ -266,28 +269,57 @@ export default function SelectionScreen() {
                 <Ionicons name="search" size={20} color={Colors.textTertiary} style={styles.searchIcon} />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="搜索品牌"
+                    placeholder="搜索品牌名称/拼音"
+                    placeholderTextColor={Colors.textTertiary}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
+                    returnKeyType="search"
+                    autoCorrect={false}
                 />
+                {isSearching && (
+                    <TouchableOpacity onPress={handleSearchClear} style={styles.clearButton}>
+                        <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
+                    </TouchableOpacity>
+                )}
             </View>
             <View style={styles.content}>
                 <View style={styles.brandListContainer}>
                     <SectionList
                         ref={sectionListRef}
-                        sections={brands}
-                        keyExtractor={(item, index) => (item && item.id ? item.id.toString() : `item-${index}`)}
+                        sections={filteredBrands}
+                        keyExtractor={(item, index) => (item?.id ? item.id.toString() : `item-${index}`)}
                         renderItem={renderBrandItem}
                         renderSectionHeader={renderSectionHeader}
                         style={styles.brandList}
                         onViewableItemsChanged={handleViewableItemsChanged}
                         viewabilityConfig={viewabilityConfig}
+                        stickySectionHeadersEnabled
                         ListHeaderComponent={
-                            <View>
-                                {renderPopularBrands()}
-                                {renderPriceFilters()}
-                            </View>
+                            isSearching ? null : (
+                                <View>
+                                    {renderPopularBrands()}
+                                    {renderPriceFilters()}
+                                </View>
+                            )
                         }
+                        ListEmptyComponent={
+                            isSearching ? (
+                                <View style={styles.emptyContainer}>
+                                    <Ionicons name="search-outline" size={48} color="#ccc" />
+                                    <Text style={styles.emptyText}>未找到匹配的品牌</Text>
+                                </View>
+                            ) : null
+                        }
+                        onScrollToIndexFailed={(info) => {
+                            setTimeout(() => {
+                                sectionListRef.current?.scrollToLocation({
+                                    sectionIndex: info.index,
+                                    itemIndex: 0,
+                                    viewPosition: 0,
+                                    animated: false,
+                                });
+                            }, 100);
+                        }}
                     />
                 </View>
                 {renderAlphabetNav()}
@@ -318,6 +350,10 @@ const styles = StyleSheet.create({
         flex: 1,
         height: 44,
         fontSize: FontSize.md,
+        color: Colors.textPrimary,
+    },
+    clearButton: {
+        padding: 4,
     },
     sectionTitle: {
         ...CommonStyles.textSectionTitle,
@@ -335,7 +371,7 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
     },
     headerItem: {
-        width: (width - Spacing.lg * 2 - 48) / 4, // 屏幕宽度减去左右边距和项目间距
+        width: (width - Spacing.lg * 2 - 48) / 4,
         alignItems: 'center',
         backgroundColor: Colors.backgroundWhite,
         borderRadius: Spacing.sm,
@@ -354,15 +390,9 @@ const styles = StyleSheet.create({
         color: Colors.textPrimary,
         textAlign: 'center',
     },
-    selectedPriceFilter: {
-        backgroundColor: Colors.primary,
-    },
     priceFilterText: {
         color: Colors.textSecondary,
         fontSize: FontSize.sm,
-    },
-    selectedPriceFilterText: {
-        color: Colors.white,
     },
     brandListContainer: {
         flex: 1,
@@ -406,16 +436,17 @@ const styles = StyleSheet.create({
     },
     alphabetNav: {
         position: 'absolute',
-        right: 8,
-        top: height * 0.3,
-        bottom: 16,
-        justifyContent: 'flex-start',
+        right: 4,
+        top: 0,
+        bottom: 0,
+        justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
+        paddingVertical: Spacing.sm,
     },
     letterButton: {
         paddingVertical: 2,
-        paddingHorizontal: 4,
+        paddingHorizontal: 5,
         marginVertical: 1,
     },
     activeLetterButton: {
@@ -429,6 +460,15 @@ const styles = StyleSheet.create({
     activeLetterText: {
         color: Colors.white,
         fontWeight: 'bold',
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        paddingTop: 80,
+    },
+    emptyText: {
+        marginTop: Spacing.md,
+        fontSize: FontSize.md,
+        color: Colors.textTertiary,
     },
 });
 

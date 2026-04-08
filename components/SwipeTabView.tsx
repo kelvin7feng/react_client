@@ -20,6 +20,7 @@ const INDICATOR_HEIGHT = 2.5;
 export interface TabDef {
     key: string;
     label: string;
+    renderIcon?: (color: Animated.AnimatedInterpolation<string>) => React.ReactNode;
 }
 
 interface SwipeTabViewProps {
@@ -29,6 +30,7 @@ interface SwipeTabViewProps {
     renderHeader?: (tabBar: React.ReactNode) => React.ReactNode;
     renderLayout?: (tabBar: React.ReactNode, pager: React.ReactNode) => React.ReactNode;
     tabBarStyle?: ViewStyle;
+    tabFontSize?: number;
     children: React.ReactNode;
 }
 
@@ -39,6 +41,7 @@ export function SwipeTabView({
     renderHeader,
     renderLayout,
     tabBarStyle,
+    tabFontSize = FontSize.md,
     children,
 }: SwipeTabViewProps) {
     const pagerRef = useRef<ScrollView>(null);
@@ -150,9 +153,12 @@ export function SwipeTabView({
                             if (tabCentersRef.current.every(c => c > 0)) rebuildIndicator();
                         }}
                     >
-                        <Animated.Text style={[styles.tabText, { color: textColor }]}>
-                            {tab.label}
-                        </Animated.Text>
+                        <View style={styles.tabContent}>
+                            {tab.renderIcon?.(textColor)}
+                            <Animated.Text style={[styles.tabText, { color: textColor, fontSize: tabFontSize }]}>
+                                {tab.label}
+                            </Animated.Text>
+                        </View>
                     </TouchableOpacity>
                 );
             })}
@@ -209,6 +215,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: Spacing.xs,
         paddingBottom: INDICATOR_HEIGHT + 4,
+    },
+    tabContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
     },
     tabText: {
         fontSize: FontSize.md,

@@ -11,11 +11,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
-import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
-import { RemoteImage } from '../../components/RemoteImage';
+import { buildApiUrl, API_ENDPOINTS } from '../config/api';
+import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../config/styles';
+import { RemoteImage } from '../components/RemoteImage';
 
-const VehicleImage = ({ uri, style }) => {
+const VehicleImage = ({ uri, style }: { uri: string; style: any }) => {
     const [imageError, setImageError] = useState(false);
 
     if (imageError || !uri) {
@@ -36,63 +36,70 @@ const VehicleImage = ({ uri, style }) => {
     );
 };
 
-const formatPriceRange = (min, max) => {
-    const minPrice = parseFloat(min);
-    const maxPrice = parseFloat(max);
-    const hasMin = !isNaN(minPrice) && minPrice > 0;
-    const hasMax = !isNaN(maxPrice) && maxPrice > 0;
+const formatPriceRange = (min: number, max: number) => {
+    const hasMin = !isNaN(min) && min > 0;
+    const hasMax = !isNaN(max) && max > 0;
 
     if (hasMin && hasMax) {
-        if (minPrice === maxPrice) return `${minPrice.toLocaleString()}`;
-        return `${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()}`;
+        if (min === max) return `${min.toLocaleString()}`;
+        return `${min.toLocaleString()} - ${max.toLocaleString()}`;
     } else if (hasMin) {
-        return `${minPrice.toLocaleString()} 起`;
+        return `${min.toLocaleString()} 起`;
     } else if (hasMax) {
-        return `最高 ${maxPrice.toLocaleString()}`;
+        return `最高 ${max.toLocaleString()}`;
     }
     return '暂无';
 };
 
-const BrandVehiclesScreen = () => {
-    const { brandId, brandName } = useLocalSearchParams();
+export default function PriceVehiclesScreen() {
+    const { minPrice, maxPrice, title } = useLocalSearchParams<{
+        minPrice: string;
+        maxPrice: string;
+        title: string;
+    }>();
     const router = useRouter();
     const insets = useSafeAreaInsets();
 
-    const [vehicles, setVehicles] = useState([]);
+    const [vehicles, setVehicles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
 
-    const title = brandName ? String(brandName) : '品牌车型';
+    const headerTitle = title ? String(title) : '价格筛选';
 
     useEffect(() => {
-        if (!brandId) return;
+        if (!minPrice || !maxPrice) return;
 
         const fetchVehicles = async () => {
             try {
-                const brandIdStr = Array.isArray(brandId) ? brandId[0] : brandId;
-                const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_VEHICLES, { brand_id: brandIdStr }));
+                const response = await fetch(
+                    buildApiUrl(API_ENDPOINTS.GET_VEHICLES_BY_PRICE, {
+                        min_price: minPrice,
+                        max_price: maxPrice,
+                    })
+                );
                 const data = await response.json();
-
                 if (data.code === 0) {
                     setVehicles(data.data || []);
                 } else {
-                    throw new Error(data.msg || '获取车型数据失败');
+                    Alert.alert('错误', data.msg || '获取车型失败');
                 }
-            } catch (e) {
-                setError(e.message);
-                Alert.alert('错误', e.message);
+            } catch {
+                Alert.alert('错误', '网络请求失败');
             } finally {
                 setLoading(false);
             }
         };
 
         fetchVehicles();
-    }, [brandId]);
+    }, [minPrice, maxPrice]);
 
-    const renderVehicleItem = ({ item }) => (
-        <TouchableOpacity style={styles.itemContainer} onPress={() => router.push(`/vehicle/${item.id}`)}>
+    const renderVehicleItem = ({ item }: { item: any }) => (
+        <TouchableOpacity
+            style={styles.itemContainer}
+            onPress={() => router.push(`/vehicle/${item.id}`)}
+        >
             <VehicleImage uri={item.main_image} style={styles.itemImage} />
             <View style={styles.itemInfo}>
+                <Text style={styles.brandTag}>{item.brand_name}</Text>
                 <Text style={styles.itemName}>{item.model_name}</Text>
                 <Text style={styles.itemPrice}>
                     指导价: {formatPriceRange(item.reference_min_price, item.reference_max_price)}
@@ -106,51 +113,38 @@ const BrandVehiclesScreen = () => {
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                 <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{title}</Text>
+            <Text style={styles.headerTitleText}>{headerTitle}</Text>
             <View style={styles.backBtn} />
         </View>
     );
 
-    if (loading) {
-        return (
-            <View style={styles.container}>
-                {renderHeader()}
-                <View style={CommonStyles.centerContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
-                    <Text style={CommonStyles.loadingTextSmall}>正在加载车型...</Text>
-                </View>
-            </View>
-        );
-    }
-
-    if (error) {
-        return (
-            <View style={styles.container}>
-                {renderHeader()}
-                <View style={CommonStyles.centerContainer}>
-                    <Text style={CommonStyles.errorTextAlt}>加载失败: {error}</Text>
-                </View>
-            </View>
-        );
-    }
-
     return (
         <View style={styles.container}>
             {renderHeader()}
-            <FlatList
-                data={vehicles}
-                renderItem={renderVehicleItem}
-                keyExtractor={(item) => item.id.toString()}
-                contentContainerStyle={styles.listContent}
-                ListEmptyComponent={
-                    <View style={CommonStyles.centerContainer}>
-                        <Text style={CommonStyles.emptyText}>该品牌下暂无车型数据</Text>
-                    </View>
-                }
-            />
+            {loading ? (
+                <View style={CommonStyles.loadingContainer}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <Text style={CommonStyles.loadingTextSmall}>加载中...</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={vehicles}
+                    renderItem={renderVehicleItem}
+                    keyExtractor={(item) => item.id.toString()}
+                    contentContainerStyle={styles.listContent}
+                    ListEmptyComponent={
+                        <View style={CommonStyles.centerContainer}>
+                            <Ionicons name="car-outline" size={60} color="#ccc" />
+                            <Text style={[CommonStyles.emptyText, { marginTop: Spacing.md }]}>
+                                该价格区间暂无车型
+                            </Text>
+                        </View>
+                    }
+                />
+            )}
         </View>
     );
-};
+}
 
 const styles = StyleSheet.create({
     container: {
@@ -173,7 +167,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    headerTitle: {
+    headerTitleText: {
         flex: 1,
         fontSize: FontSize.lg,
         fontWeight: '600',
@@ -206,6 +200,11 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
     },
+    brandTag: {
+        fontSize: FontSize.xs,
+        color: Colors.primary,
+        marginBottom: Spacing.xs,
+    },
     itemName: {
         fontSize: FontSize.md,
         fontWeight: '600',
@@ -217,5 +216,3 @@ const styles = StyleSheet.create({
         color: Colors.textSecondary,
     },
 });
-
-export default BrandVehiclesScreen;

@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     },
     panel: {
         height: '100%',
-        backgroundColor: Colors.backgroundWhite,
+        backgroundColor: Colors.backgroundGray,
         shadowColor: Colors.shadow,
         shadowOffset: { width: 4, height: 0 },
         shadowOpacity: 0.15,
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.xl,
     },
     section: {
-        backgroundColor: Colors.backgroundGray,
+        backgroundColor: Colors.backgroundWhite,
         borderRadius: 12,
         marginBottom: Spacing.md,
         overflow: 'hidden',
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: StyleSheet.hairlineWidth,
-        backgroundColor: Colors.borderDark,
+        backgroundColor: Colors.border,
         marginLeft: Spacing.md + 20 + Spacing.md,
     },
     confirmContainer: {
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     confirmPanel: {
-        backgroundColor: Colors.backgroundWhite,
+        backgroundColor: Colors.backgroundGray,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         paddingHorizontal: Spacing.xl,
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     confirmBtnSwitch: {
-        backgroundColor: Colors.backgroundGray,
+        backgroundColor: Colors.backgroundWhite,
     },
     confirmBtnSwitchText: {
         fontSize: FontSize.md,
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
         color: Colors.textPrimary,
     },
     confirmBtnLogout: {
-        backgroundColor: Colors.backgroundGray,
+        backgroundColor: Colors.backgroundWhite,
     },
     confirmBtnLogoutText: {
         fontSize: FontSize.md,

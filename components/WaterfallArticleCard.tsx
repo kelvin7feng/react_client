@@ -11,6 +11,7 @@ export type WaterfallArticleItem = {
     image?: string | null;
     title: string;
     author: string;
+    author_id?: number;
     likes: number;
     liked?: boolean;
 };
@@ -19,6 +20,7 @@ export type WaterfallArticleCardProps = {
     item: WaterfallArticleItem;
     onPress: (id: number) => void;
     onLike: (item: WaterfallArticleItem) => void;
+    onAuthorPress?: (authorId: number) => void;
     /** 无封面图时是否显示占位（与「我的」一致；设为 false 则顶部留空） */
     showImagePlaceholder?: boolean;
     style?: StyleProp<ViewStyle>;
@@ -28,6 +30,7 @@ export function WaterfallArticleCard({
     item,
     onPress,
     onLike,
+    onAuthorPress,
     showImagePlaceholder = true,
     style,
 }: WaterfallArticleCardProps) {
@@ -50,9 +53,18 @@ export function WaterfallArticleCard({
                     {item.title}
                 </Text>
                 <View style={styles.footer}>
-                    <Text style={styles.author} numberOfLines={1}>
-                        {item.author}
-                    </Text>
+                    {onAuthorPress && item.author_id ? (
+                        <TouchableOpacity
+                            style={{ flex: 1 }}
+                            onPress={(e) => { e.stopPropagation(); onAuthorPress(item.author_id!); }}
+                            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={styles.author} numberOfLines={1}>{item.author}</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <Text style={styles.author} numberOfLines={1}>{item.author}</Text>
+                    )}
                     <TouchableOpacity
                         style={styles.likeBtn}
                         onPress={(e) => {

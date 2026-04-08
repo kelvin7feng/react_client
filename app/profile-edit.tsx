@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
-    View, Text, TextInput, TouchableOpacity, Image, ScrollView,
-    StyleSheet, SafeAreaView, Alert, ActivityIndicator,
+    View, Text, TextInput, TouchableOpacity, Image, ScrollView, StyleSheet,
+    Alert, ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -12,6 +13,7 @@ import { useAuth } from '../config/auth';
 
 export default function ProfileEditScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const auth = useAuth();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -91,11 +93,29 @@ export default function ProfileEditScreen() {
     };
 
     if (loading) {
-        return <SafeAreaView style={s.container}><View style={s.center}><ActivityIndicator /></View></SafeAreaView>;
+        return (
+            <View style={s.container}>
+                <View style={[s.header, { paddingTop: insets.top + Spacing.sm }]}>
+                    <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+                        <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={s.headerTitle}>编辑资料</Text>
+                    <View style={s.backBtn} />
+                </View>
+                <View style={s.center}><ActivityIndicator /></View>
+            </View>
+        );
     }
 
     return (
-        <SafeAreaView style={s.container}>
+        <View style={s.container}>
+            <View style={[s.header, { paddingTop: insets.top + Spacing.sm }]}>
+                <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+                    <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+                </TouchableOpacity>
+                <Text style={s.headerTitle}>编辑资料</Text>
+                <View style={s.backBtn} />
+            </View>
             <ScrollView style={s.scroll} contentContainerStyle={s.content}>
                 <TouchableOpacity style={s.avatarSection} onPress={pickAvatar}>
                     <Image
@@ -145,12 +165,19 @@ export default function ProfileEditScreen() {
                     <Text style={s.saveBtnText}>{saving ? '保存中...' : '保存'}</Text>
                 </TouchableOpacity>
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 }
 
 const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.backgroundWhite },
+    header: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: Spacing.sm, paddingBottom: Spacing.sm,
+        backgroundColor: Colors.backgroundWhite, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border,
+    },
+    backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+    headerTitle: { flex: 1, fontSize: FontSize.lg, fontWeight: '600', color: Colors.textPrimary, textAlign: 'center' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     scroll: { flex: 1 },
     content: { padding: Spacing.xl },

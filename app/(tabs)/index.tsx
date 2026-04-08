@@ -19,6 +19,7 @@ import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
+import { navigateToUserProfile } from '../../config/utils';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
 import { SwipeTabView } from '../../components/SwipeTabView';
 import { SettingsDrawer } from '../../components/SettingsDrawer';
@@ -388,6 +389,10 @@ export default function Index() {
     return '暂无推荐内容';
   };
 
+  const handleAuthorPress = useCallback((authorId: number) => {
+    navigateToUserProfile(router, authorId, userId ?? null);
+  }, [router, userId]);
+
   const renderWaterfall = useCallback((items: any[]) => (
     <WaterfallTwoColumnGrid
       items={items}
@@ -397,10 +402,11 @@ export default function Index() {
           item={item}
           onPress={(id) => router.push(`/article/${id}`)}
           onLike={handleCardLike}
+          onAuthorPress={handleAuthorPress}
         />
       )}
     />
-  ), [router, handleCardLike]);
+  ), [router, handleCardLike, handleAuthorPress]);
 
   const tabs = TAB_ORDER.map(key => ({
     key,
@@ -413,17 +419,20 @@ export default function Index() {
       <SwipeTabView
         tabs={tabs}
         initialIndex={1}
+        tabFontSize={FontSize.md + 2}
         onTabChange={handleTabChange}
         renderHeader={(tabBar) => (
           <View style={styles.header}>
-            <TouchableOpacity style={styles.menuButton} onPress={() => {
+            <TouchableOpacity style={styles.headerSide} onPress={() => {
               if (!isLoggedIn) { router.push('/login'); return; }
               setDrawerVisible(true);
             }}>
               <Feather name="menu" size={24} color="black" />
             </TouchableOpacity>
-            {tabBar}
-            <TouchableOpacity style={styles.searchButton} onPress={navigateSearch}>
+            <View style={styles.headerCenter}>
+              {tabBar}
+            </View>
+            <TouchableOpacity style={styles.headerSide} onPress={navigateSearch}>
               <Ionicons name="search" size={24} color="#333" />
             </TouchableOpacity>
           </View>
@@ -460,25 +469,24 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: Spacing.sm + 4,
     backgroundColor: Colors.background,
     ...CommonStyles.borderBottom,
     borderBottomColor: Colors.borderLight,
-    height: 50,
+    height: 60,
+    paddingHorizontal: Spacing.sm + 2,
   },
-  menuButton: {
-    position: 'absolute',
-    left: Spacing.sm + 2,
-    top: 13,
-    zIndex: 1,
+  headerSide: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
   },
-  searchButton: {
-    position: 'absolute',
-    right: Spacing.sm + 2,
-    top: 13,
-    zIndex: 1,
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyContainer: {
     flex: 1,

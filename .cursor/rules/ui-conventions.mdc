@@ -1,0 +1,60 @@
+<!--
+ * @Descripttion: 
+ * @Author: kkfeng@tencent.com
+ * @version: 1.0
+ * @Date: 2026-04-08 09:21:46
+ * @LastEditors: kkfeng@tencent.com
+-->
+---
+description: 客户端 UI 开发规范：安全区域、头像跳转、配色层级、Hooks 顺序
+alwaysApply: true
+---
+
+# 客户端 UI 开发规范
+
+## 1. 安全区域处理
+
+使用 `useSafeAreaInsets` 代替 `SafeAreaView`，将 insets 加到顶部/底部容器的 padding，使背景色延伸到屏幕边缘，避免色差漏空。
+
+```tsx
+// ❌ BAD
+<SafeAreaView style={{ flex: 1 }}>
+    <View style={styles.header}>...</View>
+</SafeAreaView>
+
+// ✅ GOOD
+const insets = useSafeAreaInsets();
+<View style={{ flex: 1 }}>
+    <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>...</View>
+    <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, Spacing.sm) }]}>...</View>
+</View>
+```
+
+## 2. 头像/用户名必须可点击跳转
+
+所有展示用户头像或用户名的地方，都必须用 `TouchableOpacity` 包裹并跳转到用户主页。使用统一工具函数：
+
+```tsx
+import { navigateToUserProfile } from '../config/utils';
+
+// 自动判断：本人→"我的"tab，他人→ user/[userId] 页面
+navigateToUserProfile(router, targetUserId, currentUserId);
+```
+
+## 3. 配色层级：灰底白卡
+
+面板/页面背景使用浅灰（`Colors.backgroundGray`），内容卡片使用白色（`Colors.backgroundWhite`），形成层次对比。
+
+## 4. React Hooks 顺序
+
+所有 `useState`、`useCallback`、`useEffect` 等 Hooks 必须在组件内**条件返回（early return）之前**声明，避免 "Rendered more hooks" 错误。
+
+```tsx
+// ❌ BAD — hook 在 early return 之后
+if (loading) return <Loading />;
+const handlePress = useCallback(() => {}, []);
+
+// ✅ GOOD — hook 在 early return 之前
+const handlePress = useCallback(() => {}, []);
+if (loading) return <Loading />;
+```

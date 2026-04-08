@@ -14,13 +14,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
-import { formatCount } from '../../config/utils';
+import { formatCount, navigateToUserProfile } from '../../config/utils';
 import { RemoteImage } from '../../components/RemoteImage';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
 import { SwipeTabView } from '../../components/SwipeTabView';
@@ -28,12 +29,28 @@ import { SettingsDrawer } from '../../components/SettingsDrawer';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+const TAB_ICON_SIZE = 14;
 const TABS = [
-    { key: 'notes', label: '笔记' },
-    { key: 'comments', label: '评论' },
-    { key: 'favorites', label: '收藏' },
-    { key: 'liked', label: '赞过' },
-    { key: 'viewed', label: '看过' },
+    {
+        key: 'notes', label: '笔记',
+        renderIcon: (color: any) => <Animated.Text style={{ color }}><Ionicons name="document-text-outline" size={TAB_ICON_SIZE} /></Animated.Text>,
+    },
+    {
+        key: 'comments', label: '评论',
+        renderIcon: (color: any) => <Animated.Text style={{ color }}><Ionicons name="chatbubble-outline" size={TAB_ICON_SIZE} /></Animated.Text>,
+    },
+    {
+        key: 'favorites', label: '收藏',
+        renderIcon: (color: any) => <Animated.Text style={{ color }}><Ionicons name="star-outline" size={TAB_ICON_SIZE} /></Animated.Text>,
+    },
+    {
+        key: 'liked', label: '赞过',
+        renderIcon: (color: any) => <Animated.Text style={{ color }}><Ionicons name="heart-outline" size={TAB_ICON_SIZE} /></Animated.Text>,
+    },
+    {
+        key: 'viewed', label: '看过',
+        renderIcon: (color: any) => <Animated.Text style={{ color }}><Ionicons name="eye-outline" size={TAB_ICON_SIZE} /></Animated.Text>,
+    },
 ];
 
 const GenderIcon = ({ gender }: { gender: number }) => {
@@ -243,6 +260,10 @@ export default function MyScreen() {
         return off;
     }, []);
 
+    const handleAuthorPress = useCallback((authorId: number) => {
+        navigateToUserProfile(router, authorId, userId ?? null);
+    }, [router, userId]);
+
     if (!isLoggedIn) {
         return (
             <SafeAreaView style={styles.safeArea}>
@@ -294,6 +315,7 @@ export default function MyScreen() {
                         item={item}
                         onPress={(id) => router.push(`/article/${id}`)}
                         onLike={onLike}
+                        onAuthorPress={handleAuthorPress}
                     />
                 )}
             />
@@ -353,8 +375,8 @@ export default function MyScreen() {
                 }}>
                     <Feather name="menu" size={24} color={Colors.textPrimary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.topBarBtn}>
-                    <Ionicons name="scan-outline" size={22} color={Colors.textPrimary} />
+                <TouchableOpacity style={styles.topBarBtn} onPress={() => router.push('/scanner')}>
+                    <MaterialCommunityIcons name="line-scan" size={22} color={Colors.textPrimary} />
                 </TouchableOpacity>
             </View>
             <SettingsDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />

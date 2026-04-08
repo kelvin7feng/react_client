@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    SafeAreaView,
     View,
     Text,
     ScrollView,
@@ -13,7 +12,8 @@ import {
     FlatList,
     Dimensions,
 } from 'react-native';
-import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
@@ -239,6 +239,7 @@ const VehicleSpecs = ({ vehicle }) => {
 const VehicleDetailScreen = () => {
     const { vehicleId } = useLocalSearchParams();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
 
     const [vehicle, setVehicle] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -289,46 +290,56 @@ const VehicleDetailScreen = () => {
         return '暂无报价';
     };
 
+    const headerTitle = vehicle?.model_name || '车辆详情';
+
+    const renderHeader = () => (
+        <View style={[styles.customHeader, { paddingTop: insets.top + Spacing.sm }]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
+            <View style={styles.backBtn} />
+        </View>
+    );
+
     if (loading) {
         return (
-            <View style={CommonStyles.centerContainer}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-                <Text style={CommonStyles.loadingTextSmall}>正在加载车辆详情...</Text>
+            <View style={styles.pageContainer}>
+                {renderHeader()}
+                <View style={CommonStyles.centerContainer}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <Text style={CommonStyles.loadingTextSmall}>正在加载车辆详情...</Text>
+                </View>
             </View>
         );
     }
 
     if (error || !vehicle) {
         return (
-            <View style={CommonStyles.centerContainer}>
-                <Ionicons name="warning-outline" size={60} color={Colors.errorAlt} />
-                <Text style={CommonStyles.errorTextAlt}>
-                    {error || '车辆信息不存在'}
-                </Text>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => router.back()}
-                >
-                    <Text style={styles.backButtonText}>返回</Text>
-                </TouchableOpacity>
+            <View style={styles.pageContainer}>
+                {renderHeader()}
+                <View style={CommonStyles.centerContainer}>
+                    <Ionicons name="warning-outline" size={60} color={Colors.errorAlt} />
+                    <Text style={CommonStyles.errorTextAlt}>
+                        {error || '车辆信息不存在'}
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.retryButton}
+                        onPress={() => router.back()}
+                    >
+                        <Text style={styles.retryButtonText}>返回</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
         );
     }
 
     return (
-        <SafeAreaView style={CommonStyles.container}>
-            <Stack.Screen
-                options={{
-                    title: vehicle.model_name || '车辆详情',
-                    headerBackTitleVisible: false,
-                }}
-            />
-
+        <View style={styles.pageContainer}>
+            {renderHeader()}
             <ScrollView style={CommonStyles.scrollView}>
-                {/* 图片展示组件 */}
                 <ImageGallery images={vehicle.images} />
 
-                {/* 基本信息 */}
                 <View style={styles.basicInfo}>
                     <Text style={styles.modelName}>{vehicle.brand_name} - {vehicle.model_name} {vehicle.model_year}款</Text>
                     <Text style={styles.price}>
@@ -336,24 +347,50 @@ const VehicleDetailScreen = () => {
                     </Text>
                 </View>
 
-                {/* 配置信息 */}
                 <VehicleSpecs vehicle={vehicle} />
 
-                {/* 底部留白 */}
                 <View style={styles.bottomSpacer} />
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
-    backButton: {
+    pageContainer: {
+        flex: 1,
+        backgroundColor: Colors.background,
+    },
+    customHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: Spacing.sm,
+        paddingBottom: Spacing.sm,
+        backgroundColor: Colors.backgroundWhite,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: Colors.border,
+    },
+    backBtn: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerTitle: {
+        flex: 1,
+        fontSize: FontSize.lg,
+        fontWeight: '600',
+        color: Colors.textPrimary,
+        textAlign: 'center',
+    },
+    retryButton: {
         backgroundColor: Colors.primary,
         paddingHorizontal: Spacing.xl,
         paddingVertical: Spacing.sm + 2,
         borderRadius: Spacing.sm,
+        marginTop: Spacing.lg,
     },
-    backButtonText: {
+    retryButtonText: {
         color: Colors.white,
         fontSize: FontSize.md,
         fontWeight: '600',

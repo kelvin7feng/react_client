@@ -26,7 +26,7 @@ import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../../config/api';
 import { Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
-import { formatCount } from '../../config/utils';
+import { formatCount, navigateToUserProfile } from '../../config/utils';
 import { RemoteImage } from '../../components/RemoteImage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -365,12 +365,18 @@ export default function ArticleDetailScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                         <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
                     </TouchableOpacity>
-                    <RemoteImage
-                        uri={article.author_avatar || 'https://picsum.photos/100/100'}
-                        style={styles.topBarAvatar}
-                        contentFit="cover"
-                    />
-                    <Text style={styles.topBarName} numberOfLines={1}>{article.author_name}</Text>
+                    <TouchableOpacity
+                        style={styles.topBarAuthor}
+                        onPress={() => navigateToUserProfile(router, article.author_id, userId)}
+                        activeOpacity={0.7}
+                    >
+                        <RemoteImage
+                            uri={article.author_avatar || 'https://picsum.photos/100/100'}
+                            style={styles.topBarAvatar}
+                            contentFit="cover"
+                        />
+                        <Text style={styles.topBarName} numberOfLines={1}>{article.author_name}</Text>
+                    </TouchableOpacity>
                 </View>
                 <View style={styles.topBarRight}>
                     {!isOwnArticle && (
@@ -550,14 +556,18 @@ export default function ArticleDetailScreen() {
                         ) : (
                             comments.map((comment: any) => (
                                 <View key={comment.id} style={styles.commentItem}>
-                                    <RemoteImage
-                                        uri={comment.author_avatar || 'https://picsum.photos/80/80'}
-                                        style={styles.commentAvatar}
-                                        contentFit="cover"
-                                    />
+                                    <TouchableOpacity onPress={() => navigateToUserProfile(router, comment.author_id, userId)} activeOpacity={0.7}>
+                                        <RemoteImage
+                                            uri={comment.author_avatar || 'https://picsum.photos/80/80'}
+                                            style={styles.commentAvatar}
+                                            contentFit="cover"
+                                        />
+                                    </TouchableOpacity>
                                     <View style={styles.commentBody}>
                                         <View style={styles.commentHeader2}>
-                                            <Text style={styles.commentAuthor}>{comment.author_name}</Text>
+                                            <TouchableOpacity onPress={() => navigateToUserProfile(router, comment.author_id, userId)} activeOpacity={0.7}>
+                                                <Text style={styles.commentAuthor}>{comment.author_name}</Text>
+                                            </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={styles.commentLikeBtn}
                                                 onPress={() => handleCommentLike(comment.id, comment.liked, comment.like_count)}
@@ -699,6 +709,10 @@ const styles = StyleSheet.create({
     backButton: {
         padding: 4,
         marginRight: Spacing.sm,
+    },
+    topBarAuthor: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     topBarAvatar: {
         width: 30,

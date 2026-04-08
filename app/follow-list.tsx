@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../config/api';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
+import { navigateToUserProfile } from '../config/utils';
 import { RemoteImage } from '../components/RemoteImage';
 import { SwipeTabView } from '../components/SwipeTabView';
 
@@ -38,17 +39,21 @@ const UserListItem = ({
     item,
     onToggleFollow,
     isLoading,
+    onUserPress,
 }: {
     item: UserItem;
     onToggleFollow: (user: UserItem) => void;
     isLoading: boolean;
+    onUserPress: (userId: number) => void;
 }) => (
     <View style={styles.userItem}>
-        <RemoteImage uri={item.avatar || 'https://picsum.photos/200/200?random=1'} style={styles.userAvatar} contentFit="cover" />
-        <View style={styles.userInfo}>
+        <TouchableOpacity onPress={() => onUserPress(item.id)} activeOpacity={0.7}>
+            <RemoteImage uri={item.avatar || 'https://picsum.photos/200/200?random=1'} style={styles.userAvatar} contentFit="cover" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.userInfo} onPress={() => onUserPress(item.id)} activeOpacity={0.7}>
             <Text style={styles.userName} numberOfLines={1}>{item.username}</Text>
             <Text style={styles.userSignature} numberOfLines={1}>{item.signature || '暂无签名'}</Text>
-        </View>
+        </TouchableOpacity>
         <TouchableOpacity
             style={[styles.followBtn, item.is_followed ? styles.followedBtn : styles.unfollowedBtn]}
             onPress={() => onToggleFollow(item)}
@@ -72,12 +77,14 @@ const TabPage = ({
     emptyText,
     onToggleFollow,
     followLoading,
+    onUserPress,
 }: {
     items: UserItem[];
     loading: boolean;
     emptyText: string;
     onToggleFollow: (user: UserItem) => void;
     followLoading: Record<number, boolean>;
+    onUserPress: (userId: number) => void;
 }) => (
     <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
         {loading ? (
@@ -96,6 +103,7 @@ const TabPage = ({
                     item={item}
                     onToggleFollow={onToggleFollow}
                     isLoading={!!followLoading[item.id]}
+                    onUserPress={onUserPress}
                 />
             ))
         )}
@@ -156,6 +164,10 @@ export default function FollowListScreen() {
         }
     }, [userId, followLoading]);
 
+    const handleUserPress = useCallback((targetUserId: number) => {
+        navigateToUserProfile(router, targetUserId, userId ?? null);
+    }, [router, userId]);
+
     const tabData: Record<TabKey, { items: UserItem[]; emptyText: string }> = {
         mutual: { items: mutualList, emptyText: '暂无互相关注' },
         following: { items: followingList, emptyText: '暂无关注' },
@@ -186,6 +198,7 @@ export default function FollowListScreen() {
                         emptyText={tabData[key].emptyText}
                         onToggleFollow={handleToggleFollow}
                         followLoading={followLoading}
+                        onUserPress={handleUserPress}
                     />
                 ))}
             </SwipeTabView>

@@ -14,6 +14,7 @@ import AntDesign from '@expo/vector-icons/AntDesign';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../config/auth';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
+import { useWebSocket } from '../../config/useWebSocket';
 
 export default function TabLayout() {
     const router = useRouter();
@@ -30,10 +31,19 @@ export default function TabLayout() {
         } catch {}
     }, [userId, isLoggedIn]);
 
+    useWebSocket(
+        isLoggedIn ? userId : null,
+        useCallback((type: string, data: any) => {
+            if (type === 'unread_update' && data?.count !== undefined) {
+                setUnreadCount(data.count);
+            }
+        }, []),
+    );
+
     useEffect(() => {
         if (!isLoggedIn) { setUnreadCount(0); return; }
         fetchUnreadCount();
-        intervalRef.current = setInterval(fetchUnreadCount, 15000);
+        intervalRef.current = setInterval(fetchUnreadCount, 30000);
         const sub = AppState.addEventListener('change', (state) => {
             if (state === 'active') fetchUnreadCount();
         });
@@ -61,8 +71,15 @@ export default function TabLayout() {
                     headerTintColor: 'black',
                     tabBarStyle: {
                         backgroundColor: '#f8f9fa',
-                        height: 60,
-                        paddingBottom: 5,
+                        height: 72,
+                        paddingBottom: 6,
+                    },
+                    tabBarItemStyle: {
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                    },
+                    tabBarLabelStyle: {
+                        fontSize: 11,
                     },
                 }}
             >
@@ -92,27 +109,26 @@ export default function TabLayout() {
                             <View
                                 style={{
                                     flex: 1,
-                                    justifyContent: 'center',
+                                    justifyContent: 'flex-start',
                                     alignItems: 'center',
-                                    paddingTop: 5,
+                                    paddingTop: 8,
                                 }}
                             >
                                 <TouchableOpacity
                                     style={{
                                         width: 50,
-                                        height: 50,
-                                        borderRadius: 25,
+                                        height: 38,
+                                        borderRadius: 12,
                                         backgroundColor: '#ff2442',
                                         justifyContent: 'center',
                                         alignItems: 'center',
-                                        marginBottom: 5,
                                     }}
                                     onPress={() => {
                                         if (!isLoggedIn) { router.push('/login'); return; }
                                         router.push('/publish');
                                     }}
                                 >
-                                    <Ionicons name="add" size={24} color="#fff" />
+                                    <Ionicons name="add" size={25} color="#fff" style={{ fontWeight: 'bold' }} />
                                 </TouchableOpacity>
                             </View>
                         ),

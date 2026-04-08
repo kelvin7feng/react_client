@@ -21,6 +21,7 @@ export const API_ENDPOINTS = {
   // 品牌相关
   GET_BRANDS: '/getbrands',
   GET_VEHICLES: '/getvehicles',
+  GET_VEHICLES_BY_PRICE: '/getvehiclesbyprice',
 
   // 车辆相关
   GET_VEHICLE_DETAIL: '/getvehicledetail',
@@ -65,6 +66,11 @@ export const API_ENDPOINTS = {
   CONVERSATIONS: '/conversations',
   CHAT_HISTORY: '/chathistory',
   SEND_MESSAGE: '/sendmessage',
+  TOGGLE_CONVERSATION_PIN: '/toggleconversationpin',
+  DELETE_CONVERSATION: '/deleteconversation',
+
+  // 工具
+  DECODE_QRCODE: '/decode-qrcode',
 } as const;
 
 /**
