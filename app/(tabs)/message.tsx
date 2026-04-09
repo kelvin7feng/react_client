@@ -14,6 +14,8 @@ import { buildApiUrl, API_BASE_URL, API_ENDPOINTS } from '../../config/api';
 import { Colors, Spacing, FontSize } from '../../config/styles';
 import { useAuth } from '../../config/auth';
 import { RemoteImage } from '../../components/RemoteImage';
+import { openChat, preloadSessions } from '../../config/chatManager';
+import { useWSEvent } from '../../config/useWebSocket';
 
 type UnreadByType = { likes: number; follows: number; comments: number };
 
@@ -48,7 +50,7 @@ function SwipeableConversationItem({
     item, userId, router,
     onPin, onDelete, activeSwipeId, setActiveSwipeId,
 }: {
-    item: any; userId: string; router: any;
+    item: any; userId: number; router: any;
     onPin: (conv: any) => void; onDelete: (conv: any) => void;
     activeSwipeId: string | null; setActiveSwipeId: (id: string | null) => void;
 }) {
@@ -77,7 +79,8 @@ function SwipeableConversationItem({
             closeSwipe();
             return;
         }
-        router.push(`/chat/${item.id}?peer_id=${item.user1_id === userId ? item.user2_id : item.user1_id}` as any);
+        const peerId = item.user1_id === userId ? item.user2_id : item.user1_id;
+        openChat(String(item.id), peerId);
     }, [item, userId]);
 
     const handlePinPress = useCallback(() => {
@@ -200,7 +203,14 @@ export default function MessageScreen() {
         try {
             const response = await fetch(buildApiUrl(API_ENDPOINTS.CONVERSATIONS, { user_id: userId, page: 1 }));
             const result = await response.json();
-            if (result.code === 0) setConversations(result.data || []);
+            if (result.code === 0) {
+                const data = result.data || [];
+                setConversations(data);
+                preloadSessions(data.map((c: any) => ({
+                    conversationId: String(c.id),
+                    peerId: c.user1_id === userId ? c.user2_id : c.user1_id,
+                })));
+            }
         } catch {} finally { setLoading(false); setRefreshing(false); }
     }, [userId]);
 
@@ -230,6 +240,22 @@ export default function MessageScreen() {
         fetchUnreadByType();
         hasLoadedRef.current = true;
     }, [isLoggedIn, fetchConversations, fetchUnreadByType]));
+
+    useWSEvent('new_message', useCallback(async () => {
+        if (!userId) return;
+        try {
+            const response = await fetch(buildApiUrl(API_ENDPOINTS.CONVERSATIONS, { user_id: userId, page: 1 }));
+            const result = await response.json();
+            if (result.code === 0) {
+                const data = result.data || [];
+                setConversations(data);
+                preloadSessions(data.map((c: any) => ({
+                    conversationId: String(c.id),
+                    peerId: c.user1_id === userId ? c.user2_id : c.user1_id,
+                })));
+            }
+        } catch {}
+    }, [userId]));
 
     const handleRefresh = () => {
         setRefreshing(true);

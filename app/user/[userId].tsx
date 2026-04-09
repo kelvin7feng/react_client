@@ -18,6 +18,7 @@ import { Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { formatCount } from '../../config/utils';
+import { openChat } from '../../config/chatManager';
 import { RemoteImage } from '../../components/RemoteImage';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
 
@@ -201,12 +202,12 @@ export default function UserProfileScreen() {
                     (c.user2_id === currentUserId && c.user1_id === targetUserId)
                 );
                 if (conv) {
-                    router.push(`/chat/${conv.id}?peer_id=${targetUserId}` as any);
+                    openChat(String(conv.id), targetUserId);
                     return;
                 }
             }
         } catch {}
-        router.push(`/chat/new?peer_id=${targetUserId}` as any);
+        openChat('new', targetUserId);
     }, [isLoggedIn, currentUserId, targetUserId, router]);
 
     if (loading) {
