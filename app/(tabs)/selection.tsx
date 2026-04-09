@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
+import { useCatalogBrands } from '@/features/catalog/hooks';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { RemoteImage } from '../../components/RemoteImage';
 
@@ -49,50 +49,58 @@ const BrandImage = ({ uri, style }: { uri: string; style: any }) => {
 
 export default function SelectionScreen() {
     const router = useRouter();
+    const { brands: catalogBrands, loading, error } = useCatalogBrands();
 
     const [allBrands, setAllBrands] = useState<any[]>([]);
     const [brands, setBrands] = useState<any[]>([]);
     const [popularBrands, setPopularBrands] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeLetter, setActiveLetter] = useState('');
     const sectionListRef = useRef<SectionList>(null);
     const isScrolling = useRef(false);
 
     useEffect(() => {
-        const fetchBrands = async () => {
-            try {
-                const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_BRANDS));
-                const data = await response.json();
+        if (error) {
+            Alert.alert('错误', error);
+        }
+    }, [error]);
 
-                if (data.code === 0 && Array.isArray(data.data)) {
-                    const processedBrands = data.data
-                        .filter((brand: any) => brand && typeof brand.id !== 'undefined')
-                        .map((brand: any) => ({
-                            ...brand,
-                            initial: brand.pinyin ? brand.pinyin.charAt(0).toUpperCase() : '#'
-                        }));
-
-                    setAllBrands(processedBrands);
-                    const groupedData = groupBrandsByInitial(processedBrands);
-                    setBrands(groupedData);
-                    setPopularBrands(processedBrands.slice(0, 4));
-
-                    if (groupedData.length > 0) {
-                        setActiveLetter(groupedData[0].title);
-                    }
-                } else {
-                    Alert.alert('错误', data.msg || '获取品牌数据失败');
-                }
-            } catch {
-                Alert.alert('错误', '网络请求失败，请检查网络连接');
-            } finally {
-                setLoading(false);
+    function groupBrandsByInitial(brandsData: any[]) {
+        const grouped: Record<string, any[]> = {};
+        brandsData.forEach(brand => {
+            const initial = brand.initial;
+            if (!grouped[initial]) {
+                grouped[initial] = [];
             }
-        };
+            grouped[initial].push(brand);
+        });
+        return Object.keys(grouped).sort().map(initial => ({
+            title: initial,
+            data: grouped[initial]
+        }));
+    }
 
-        fetchBrands();
-    }, []);
+    useEffect(() => {
+        if (loading) return;
+
+        const processedBrands = (catalogBrands || [])
+            .filter((brand: any) => brand && typeof brand.id !== 'undefined')
+            .map((brand: any) => ({
+                ...brand,
+                initial: brand.pinyin ? brand.pinyin.charAt(0).toUpperCase() : '#'
+            }));
+
+        setAllBrands(processedBrands);
+        const groupedData = groupBrandsByInitial(processedBrands);
+        setBrands(groupedData);
+        setPopularBrands(processedBrands.slice(0, 4));
+
+        if (groupedData.length > 0) {
+            setActiveLetter(groupedData[0].title);
+        } else {
+            setActiveLetter('');
+        }
+    }, [catalogBrands, loading]);
 
     const filteredBrands = useMemo(() => {
         if (!searchQuery.trim()) return brands;
@@ -106,25 +114,13 @@ export default function SelectionScreen() {
         return groupBrandsByInitial(filtered);
     }, [searchQuery, allBrands, brands]);
 
-    const groupBrandsByInitial = (brandsData: any[]) => {
-        const grouped: Record<string, any[]> = {};
-        brandsData.forEach(brand => {
-            const initial = brand.initial;
-            if (!grouped[initial]) {
-                grouped[initial] = [];
-            }
-            grouped[initial].push(brand);
-        });
-        return Object.keys(grouped).sort().map(initial => ({
-            title: initial,
-            data: grouped[initial]
-        }));
-    };
-
     const handleBrandPress = (brand: any) => {
         router.push({
-            pathname: `/brand/${brand.id}`,
-            params: { brandName: brand.name }
+            pathname: '/brand/[brandId]',
+            params: {
+                brandId: String(brand.id),
+                brandName: brand.name,
+            }
         });
     };
 

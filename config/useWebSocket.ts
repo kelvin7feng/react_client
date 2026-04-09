@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus, DeviceEventEmitter } from 'react-native';
-import { API_BASE_URL } from './api';
+import { WS_BASE_URL } from '../shared/config/env';
 
-const WS_URL = API_BASE_URL.replace(/^http/, 'ws') + '/ws';
+const WS_URL = `${WS_BASE_URL}/ws`;
 
 const RECONNECT_BASE_MS = 2000;
 const RECONNECT_MAX_MS = 30000;

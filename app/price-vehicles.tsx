@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { buildApiUrl, API_ENDPOINTS } from '../config/api';
+import { useVehiclesByPrice } from '@/features/catalog/hooks';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../config/styles';
 import { RemoteImage } from '../components/RemoteImage';
 
@@ -59,43 +59,20 @@ export default function PriceVehiclesScreen() {
     }>();
     const router = useRouter();
     const insets = useSafeAreaInsets();
-
-    const [vehicles, setVehicles] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { vehicles, loading, error } = useVehiclesByPrice(minPrice, maxPrice);
 
     const headerTitle = title ? String(title) : '价格筛选';
 
     useEffect(() => {
-        if (!minPrice || !maxPrice) return;
-
-        const fetchVehicles = async () => {
-            try {
-                const response = await fetch(
-                    buildApiUrl(API_ENDPOINTS.GET_VEHICLES_BY_PRICE, {
-                        min_price: minPrice,
-                        max_price: maxPrice,
-                    })
-                );
-                const data = await response.json();
-                if (data.code === 0) {
-                    setVehicles(data.data || []);
-                } else {
-                    Alert.alert('错误', data.msg || '获取车型失败');
-                }
-            } catch {
-                Alert.alert('错误', '网络请求失败');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchVehicles();
-    }, [minPrice, maxPrice]);
+        if (error) {
+            Alert.alert('错误', error);
+        }
+    }, [error]);
 
     const renderVehicleItem = ({ item }: { item: any }) => (
         <TouchableOpacity
             style={styles.itemContainer}
-            onPress={() => router.push(`/vehicle/${item.id}`)}
+            onPress={() => router.push({ pathname: '/vehicle/[vehicleId]', params: { vehicleId: String(item.id) } })}
         >
             <VehicleImage uri={item.main_image} style={styles.itemImage} />
             <View style={styles.itemInfo}>

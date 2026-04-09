@@ -11,24 +11,27 @@ import {
     TouchableOpacity,
     FlatList,
     Dimensions,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
+import { useVehicleDetail } from '@/features/catalog/hooks';
+import type { VehicleDetail, VehicleImage as CatalogVehicleImage } from '@/features/catalog/types';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { RemoteImage } from '../../components/RemoteImage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 // 图片展示组件（保持不变）
-const ImageGallery = ({ images }) => {
+const ImageGallery = ({ images }: { images?: CatalogVehicleImage[] }) => {
     const [activeIndex, setActiveIndex] = useState(0);
     const [activeType, setActiveType] = useState('');
-    const flatListRef = useRef(null);
+    const flatListRef = useRef<FlatList<CatalogVehicleImage>>(null);
 
     // 按 image_type 分组图片
-    const groupedImages = images?.reduce((acc, image) => {
+    const groupedImages = images?.reduce<Record<string, CatalogVehicleImage[]>>((acc, image) => {
         const type = image.image_type || '其他';
         if (!acc[type]) {
             acc[type] = [];
@@ -50,24 +53,24 @@ const ImageGallery = ({ images }) => {
     // 获取当前类型的图片
     const currentImages = groupedImages[activeType] || [];
 
-    const handleTypePress = (type) => {
+    const handleTypePress = (type: string) => {
         setActiveType(type);
         setActiveIndex(0);
         flatListRef.current?.scrollToIndex({ index: 0, animated: false });
     };
 
-    const handleImageScroll = (event) => {
+    const handleImageScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
         const contentOffset = event.nativeEvent.contentOffset.x;
         const index = Math.round(contentOffset / screenWidth);
         setActiveIndex(index);
     };
 
-    const scrollToIndex = (index) => {
+    const scrollToIndex = (index: number) => {
         flatListRef.current?.scrollToIndex({ index, animated: true });
         setActiveIndex(index);
     };
 
-    const renderImageItem = ({ item, index }) => (
+    const renderImageItem = ({ item }: { item: CatalogVehicleImage; index: number }) => (
         <View style={styles.imageSlide}>
             <RemoteImage
                 uri={item.image_url}
@@ -106,7 +109,7 @@ const ImageGallery = ({ images }) => {
                 {/* 图片指示器 */}
                 {currentImages.length > 1 && (
                     <View style={styles.indicatorContainer}>
-                        {currentImages.map((_, index) => (
+                        {currentImages.map((_: CatalogVehicleImage, index: number) => (
                             <TouchableOpacity
                                 key={index}
                                 style={[
@@ -150,7 +153,7 @@ const ImageGallery = ({ images }) => {
 };
 
 // 配置信息展示组件 - 修改了尺寸显示方式
-const VehicleSpecs = ({ vehicle }) => {
+const VehicleSpecs = ({ vehicle }: { vehicle: VehicleDetail }) => {
     // 合并长宽高为一个尺寸属性
     const formatDimensions = () => {
         const { length, width, height } = vehicle;
@@ -209,9 +212,11 @@ const VehicleSpecs = ({ vehicle }) => {
         { label: '挂钩', value: vehicle.hook ? '有' : '无' },
         { label: '车架材质', value: vehicle.frame_material },
         //{ label: '防水等级', value: vehicle.waterproof_rating },
-    ].filter(spec => spec.value && spec.value !== '' && spec.value !== '无'); // 过滤空值
+    ].filter((spec): spec is { label: string; value: string } =>
+        Boolean(spec.value && spec.value !== '' && spec.value !== '无')
+    ); // 过滤空值
 
-    const renderSpecItem = ({ item, index }) => (
+    const renderSpecItem = ({ item, index }: { item: { label: string; value: string }; index: number }) => (
         <View style={[
             styles.specItem,
             index % 2 === 0 ? styles.specItemEven : styles.specItemOdd
@@ -240,39 +245,18 @@ const VehicleDetailScreen = () => {
     const { vehicleId } = useLocalSearchParams();
     const router = useRouter();
     const insets = useSafeAreaInsets();
-
-    const [vehicle, setVehicle] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const vehicleIdStr = Array.isArray(vehicleId) ? vehicleId[0] : vehicleId;
+    const { vehicle, loading, error } = useVehicleDetail(vehicleIdStr);
 
     useEffect(() => {
-        if (!vehicleId) return;
+        if (error) {
+            Alert.alert('错误', error);
+        }
+    }, [error]);
 
-        const fetchVehicleDetail = async () => {
-            try {
-                const vehicleIdStr = Array.isArray(vehicleId) ? vehicleId[0] : vehicleId;
-                const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_VEHICLE_DETAIL, { vehicle_id: vehicleIdStr }));
-                const data = await response.json();
-
-                if (data.code === 0 && data.data) {
-                    setVehicle(data.data);
-                } else {
-                    throw new Error(data.msg || '获取车辆详情失败');
-                }
-            } catch (e) {
-                setError(e.message);
-                Alert.alert('错误', e.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchVehicleDetail();
-    }, [vehicleId]);
-
-    const formatPrice = (min, max) => {
-        const minPrice = parseFloat(min);
-        const maxPrice = parseFloat(max);
+    const formatPrice = (min?: number | string, max?: number | string) => {
+        const minPrice = parseFloat(String(min ?? ''));
+        const maxPrice = parseFloat(String(max ?? ''));
 
         const hasMin = !isNaN(minPrice) && minPrice > 0;
         const hasMax = !isNaN(maxPrice) && maxPrice > 0;

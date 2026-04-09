@@ -6,7 +6,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
-import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
+import { loginAccount, sendVerificationCode } from '@/features/account/api';
+import { fetchBasicInfo } from '@/features/profile/api';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
 
@@ -27,7 +28,7 @@ export default function LoginScreen() {
     const [usePassword, setUsePassword] = useState(false);
     const [countdown, setCountdown] = useState(0);
     const [loading, setLoading] = useState(false);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
@@ -57,22 +58,13 @@ export default function LoginScreen() {
             return;
         }
         try {
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.SEND_CODE}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mobile: mobile.trim() }),
-            });
-            const result = await response.json();
-            if (result.code === 0) {
-                startCountdown();
-                if (result.data?.code) {
-                    Alert.alert('验证码', `您的验证码是：${result.data.code}`);
-                }
-            } else {
-                Alert.alert('失败', result.msg);
+            const result = await sendVerificationCode(mobile.trim());
+            startCountdown();
+            if (result?.code) {
+                Alert.alert('验证码', `您的验证码是：${result.code}`);
             }
-        } catch {
-            Alert.alert('失败', '网络错误');
+        } catch (error) {
+            Alert.alert('失败', error instanceof Error ? error.message : '网络错误');
         }
     };
 
@@ -85,31 +77,19 @@ export default function LoginScreen() {
             if (usePassword) body.password = password;
             else body.code = code;
 
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.LOGIN}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-            const result = await response.json();
-            if (result.code === 0) {
-                await auth.login(result.data.user_id, result.data.token);
-                try {
-                    const infoRes = await fetch(buildApiUrl(API_ENDPOINTS.GET_BASIC_INFO, { id: result.data.user_id }));
-                    const infoResult = await infoRes.json();
-                    if (infoResult.code === 0 && infoResult.data) {
-                        await auth.saveAccountInfo({
-                            userId: result.data.user_id,
-                            username: infoResult.data.username || '',
-                            avatar: infoResult.data.avatar || '',
-                        });
-                    }
-                } catch {}
-                router.back();
-            } else {
-                Alert.alert('失败', result.msg);
-            }
-        } catch {
-            Alert.alert('失败', '网络错误');
+            const result = await loginAccount(body);
+            await auth.login(result.user_id, result.token);
+            try {
+                const info = await fetchBasicInfo(result.user_id);
+                await auth.saveAccountInfo({
+                    userId: result.user_id,
+                    username: info.username || '',
+                    avatar: info.avatar || '',
+                });
+            } catch {}
+            router.back();
+        } catch (error) {
+            Alert.alert('失败', error instanceof Error ? error.message : '网络错误');
         } finally { setLoading(false); }
     };
 

@@ -11,11 +11,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
+import { useVehiclesByBrand } from '@/features/catalog/hooks';
+import type { VehicleBrief } from '@/features/catalog/types';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { RemoteImage } from '../../components/RemoteImage';
 
-const VehicleImage = ({ uri, style }) => {
+const VehicleImage = ({ uri, style }: { uri?: string; style: any }) => {
     const [imageError, setImageError] = useState(false);
 
     if (imageError || !uri) {
@@ -36,9 +37,9 @@ const VehicleImage = ({ uri, style }) => {
     );
 };
 
-const formatPriceRange = (min, max) => {
-    const minPrice = parseFloat(min);
-    const maxPrice = parseFloat(max);
+const formatPriceRange = (min?: number | string, max?: number | string) => {
+    const minPrice = parseFloat(String(min ?? ''));
+    const maxPrice = parseFloat(String(max ?? ''));
     const hasMin = !isNaN(minPrice) && minPrice > 0;
     const hasMax = !isNaN(maxPrice) && maxPrice > 0;
 
@@ -57,40 +58,22 @@ const BrandVehiclesScreen = () => {
     const { brandId, brandName } = useLocalSearchParams();
     const router = useRouter();
     const insets = useSafeAreaInsets();
-
-    const [vehicles, setVehicles] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const brandIdStr = Array.isArray(brandId) ? brandId[0] : brandId;
+    const { vehicles, loading, error } = useVehiclesByBrand(brandIdStr);
 
     const title = brandName ? String(brandName) : '品牌车型';
 
     useEffect(() => {
-        if (!brandId) return;
+        if (error) {
+            Alert.alert('错误', error);
+        }
+    }, [error]);
 
-        const fetchVehicles = async () => {
-            try {
-                const brandIdStr = Array.isArray(brandId) ? brandId[0] : brandId;
-                const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_VEHICLES, { brand_id: brandIdStr }));
-                const data = await response.json();
-
-                if (data.code === 0) {
-                    setVehicles(data.data || []);
-                } else {
-                    throw new Error(data.msg || '获取车型数据失败');
-                }
-            } catch (e) {
-                setError(e.message);
-                Alert.alert('错误', e.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchVehicles();
-    }, [brandId]);
-
-    const renderVehicleItem = ({ item }) => (
-        <TouchableOpacity style={styles.itemContainer} onPress={() => router.push(`/vehicle/${item.id}`)}>
+    const renderVehicleItem = ({ item }: { item: VehicleBrief }) => (
+        <TouchableOpacity
+            style={styles.itemContainer}
+            onPress={() => router.push({ pathname: '/vehicle/[vehicleId]', params: { vehicleId: String(item.id) } })}
+        >
             <VehicleImage uri={item.main_image} style={styles.itemImage} />
             <View style={styles.itemInfo}>
                 <Text style={styles.itemName}>{item.model_name}</Text>

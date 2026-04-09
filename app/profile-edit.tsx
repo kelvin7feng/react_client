@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../config/api';
+import { fetchBasicInfo, updateProfile } from '@/features/profile/api';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
 
@@ -27,19 +27,15 @@ export default function ProfileEditScreen() {
     useEffect(() => {
         (async () => {
             try {
-                const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_BASIC_INFO, { id: auth.userId! }));
-                const result = await response.json();
-                if (result.code === 0) {
-                    const d = result.data;
-                    setUsername(d.username || '');
-                    setSignature(d.signature || '');
-                    setGender(d.gender || 0);
-                    setBirthday(d.birthday || '');
-                    setAvatarUri(d.avatar || '');
-                }
+                const d = await fetchBasicInfo(auth.userId || undefined);
+                setUsername(d.username || '');
+                setSignature(d.signature || '');
+                setGender(d.gender || 0);
+                setBirthday(d.birthday || '');
+                setAvatarUri(d.avatar || '');
             } catch {} finally { setLoading(false); }
         })();
-    }, []);
+    }, [auth.userId]);
 
     const pickAvatar = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -58,37 +54,26 @@ export default function ProfileEditScreen() {
         if (!username.trim()) { Alert.alert('提示', '昵称不能为空'); return; }
         setSaving(true);
         try {
-            const formData = new FormData();
-            formData.append('user_id', String(auth.userId));
-            formData.append('username', username.trim());
-            formData.append('signature', signature.trim());
-            formData.append('gender', String(gender));
-            formData.append('birthday', birthday);
-            if (newAvatarFile) {
-                formData.append('avatar', {
+            const result = await updateProfile({
+                username,
+                signature,
+                gender,
+                birthday,
+                avatarFile: newAvatarFile ? {
                     uri: newAvatarFile.uri,
                     name: 'avatar.jpg',
                     type: 'image/jpeg',
-                } as any);
-            }
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.UPDATE_USER_INFO}`, {
-                method: 'PUT',
-                body: formData,
+                } : null,
             });
-            const result = await response.json();
-            if (result.code === 0) {
-                const newAvatar = result.data?.avatar || avatarUri;
-                await auth.saveAccountInfo({
-                    userId: auth.userId!,
-                    username: username.trim(),
-                    avatar: newAvatar,
-                });
-                Alert.alert('成功', '资料已更新', [{ text: '确定', onPress: () => router.back() }]);
-            } else {
-                Alert.alert('失败', result.msg || '更新失败');
-            }
-        } catch {
-            Alert.alert('失败', '网络错误');
+            const newAvatar = result?.avatar || avatarUri;
+            await auth.saveAccountInfo({
+                userId: auth.userId!,
+                username: username.trim(),
+                avatar: newAvatar,
+            });
+            Alert.alert('成功', '资料已更新', [{ text: '确定', onPress: () => router.back() }]);
+        } catch (error) {
+            Alert.alert('失败', error instanceof Error ? error.message : '网络错误');
         } finally { setSaving(false); }
     };
 

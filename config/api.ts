@@ -3,8 +3,10 @@
  * 统一管理所有 API 基础 URL 和端点
  */
 
+import { API_BASE_URL } from '../shared/config/env';
+
 // API 基础 URL
-export const API_BASE_URL = 'http://43.163.75.18:8090';
+export { API_BASE_URL };
 
 // API 端点
 export const API_ENDPOINTS = {
