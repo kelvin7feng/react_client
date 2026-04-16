@@ -18,6 +18,8 @@ import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/s
 import { RemoteImage } from '../../components/RemoteImage';
 
 const { width } = Dimensions.get('window');
+const ITEM_HEIGHT = 73;
+const SECTION_HEADER_HEIGHT = 36;
 
 const priceFilters = [
     { id: 1, label: '1-2千', minPrice: 1000, maxPrice: 2000 },
@@ -58,6 +60,7 @@ export default function SelectionScreen() {
     const [activeLetter, setActiveLetter] = useState('');
     const sectionListRef = useRef<SectionList>(null);
     const isScrolling = useRef(false);
+    const listHeaderHeightRef = useRef(0);
 
     useEffect(() => {
         if (error) {
@@ -142,10 +145,13 @@ export default function SelectionScreen() {
             setActiveLetter(letter);
             isScrolling.current = true;
 
-            sectionListRef.current.scrollToLocation({
-                sectionIndex,
-                itemIndex: 0,
-                viewPosition: 0,
+            let offset = isSearching ? 0 : listHeaderHeightRef.current;
+            for (let i = 0; i < sectionIndex; i++) {
+                offset += SECTION_HEADER_HEIGHT + filteredBrands[i].data.length * ITEM_HEIGHT;
+            }
+
+            (sectionListRef.current.getScrollResponder() as any)?.scrollTo({
+                y: offset,
                 animated: false,
             });
 
@@ -292,7 +298,9 @@ export default function SelectionScreen() {
                         stickySectionHeadersEnabled
                         ListHeaderComponent={
                             isSearching ? null : (
-                                <View>
+                                <View onLayout={(e) => {
+                                    listHeaderHeightRef.current = e.nativeEvent.layout.height;
+                                }}>
                                     {renderPopularBrands()}
                                     {renderPriceFilters()}
                                 </View>
@@ -306,16 +314,7 @@ export default function SelectionScreen() {
                                 </View>
                             ) : null
                         }
-                        onScrollToIndexFailed={(info) => {
-                            setTimeout(() => {
-                                sectionListRef.current?.scrollToLocation({
-                                    sectionIndex: info.index,
-                                    itemIndex: 0,
-                                    viewPosition: 0,
-                                    animated: false,
-                                });
-                            }, 100);
-                        }}
+                        onScrollToIndexFailed={() => {}}
                     />
                 </View>
                 {renderAlphabetNav()}
