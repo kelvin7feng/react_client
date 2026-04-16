@@ -6,7 +6,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../config/api';
+import { fetchChatHistory, fetchConversations as fetchConversationList, sendChatMessage } from '@/features/im/api';
+import type { ChatMessageItem } from '@/features/im/types';
+import { fetchBasicInfo } from '@/features/profile/api';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
 import { navigateToUserProfile } from '../config/utils';
@@ -83,7 +85,7 @@ export default function ChatWindow({
     const isNewChat = rawConvId === 'new';
     const [realConvId, setRealConvId] = useState<string | null>(isNewChat ? null : rawConvId);
 
-    const [messages, setMessages] = useState<any[]>([]);
+    const [messages, setMessages] = useState<ChatMessageItem[]>([]);
     const [inputText, setInputText] = useState('');
     const [sending, setSending] = useState(false);
     const [peerInfo, setPeerInfo] = useState<any>(null);
@@ -106,58 +108,48 @@ export default function ChatWindow({
     const fetchMessages = useCallback(async () => {
         if (!realConvId || !userId) return;
         try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.CHAT_HISTORY, {
-                conversation_id: realConvId, user_id: userId, page: 1,
-            }));
-            const result = await response.json();
-            if (result.code === 0) {
-                const newData: any[] = result.data || [];
-                const snapshot = newData.map(m => m.id).join(',');
-                if (snapshot !== snapshotRef.current) {
-                    const hadData = snapshotRef.current !== '';
-                    snapshotRef.current = snapshot;
-                    setMessages(newData);
-                    if (hadData) scrollToBottom(true);
-                }
-                dataLoaded.current = true;
+            const newData = await fetchChatHistory(realConvId, 1);
+            const snapshot = newData.map(m => m.id).join(',');
+            if (snapshot !== snapshotRef.current) {
+                const hadData = snapshotRef.current !== '';
+                snapshotRef.current = snapshot;
+                setMessages(newData);
+                if (hadData) scrollToBottom(true);
             }
+            dataLoaded.current = true;
         } catch {}
     }, [realConvId, userId, scrollToBottom]);
 
     const fetchPeerInfo = useCallback(async () => {
         if (!peer_id) return;
         try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_BASIC_INFO, { id: Number(peer_id) }));
-            const result = await response.json();
-            if (result.code === 0) setPeerInfo(result.data);
+            const result = await fetchBasicInfo(Number(peer_id));
+            setPeerInfo(result);
         } catch {}
     }, [peer_id]);
 
     const fetchMyAvatar = useCallback(async () => {
         if (!userId) return;
         try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_BASIC_INFO, { id: userId }));
-            const result = await response.json();
-            if (result.code === 0) setMyAvatar(result.data?.avatar || '');
+            const result = await fetchBasicInfo(userId);
+            setMyAvatar(result.avatar || '');
         } catch {}
     }, [userId]);
 
     const resolveConversationId = useCallback(async () => {
         if (!userId || !peer_id) return;
         try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.CONVERSATIONS, { user_id: userId, page: 1 }));
-            const result = await response.json();
-            if (result.code === 0) {
-                const peerId = Number(peer_id);
-                const conv = (result.data || []).find((c: any) =>
-                    (c.user1_id === userId && c.user2_id === peerId) ||
-                    (c.user2_id === userId && c.user1_id === peerId)
-                );
-                if (conv) {
-                    const newId = String(conv.id);
-                    setRealConvId(newId);
-                    if (isNewChat) replaceSession(rawConvId, newId);
-                }
+            const result = await fetchConversationList(1);
+            const peerId = Number(peer_id);
+            const conv = (result || []).find((c) =>
+                (c.user1_id === userId && c.user2_id === peerId) ||
+                (c.user2_id === userId && c.user1_id === peerId)
+            );
+            if (conv) {
+                const newId = String(conv.id);
+                snapshotRef.current = '';
+                setRealConvId(newId);
+                if (isNewChat) replaceSession(rawConvId, newId);
             }
         } catch {}
     }, [userId, peer_id, isNewChat, rawConvId]);
@@ -221,20 +213,22 @@ export default function ChatWindow({
             sender_id: userId!,
             receiver_id: Number(peer_id),
             content: text,
-            created_at: new Date().toISOString(),
+            created_time: new Date().toISOString(),
             _optimistic: true,
         };
         setMessages(prev => [...prev, optimisticMsg]);
         scrollToBottom(true);
 
         try {
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.SEND_MESSAGE}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sender_id: userId!, receiver_id: Number(peer_id), content: text }),
-            });
-            const result = await response.json();
-            if (result.code === 0) {
-                if (!realConvId) await resolveConversationId();
+            const result = await sendChatMessage(Number(peer_id), text, userId || undefined);
+            if (!realConvId) {
+                const newId = String(result.conversation_id);
+                snapshotRef.current = '';
+                setRealConvId(newId);
+                if (isNewChat) {
+                    replaceSession(rawConvId, newId);
+                }
+            } else {
                 fetchMessages();
             }
         } catch {} finally { setSending(false); }

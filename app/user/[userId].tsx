@@ -13,7 +13,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../../config/api';
+import { fetchUserHome } from '@/features/bff/api';
+import { toggleArticleLike } from '@/features/community/api';
+import { toggleFollow } from '@/features/social/api';
+import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 import { Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
@@ -85,61 +88,44 @@ export default function UserProfileScreen() {
         { useNativeDriver: false },
     );
 
-    const fetchUserData = useCallback(async () => {
+    const applyFollowState = useCallback((nextFollowed: boolean) => {
+        setFollowed(prev => {
+            if (prev === nextFollowed) {
+                return prev;
+            }
+            setUserStats(stats => ({
+                ...stats,
+                followers_count: nextFollowed
+                    ? stats.followers_count + 1
+                    : Math.max(stats.followers_count - 1, 0),
+            }));
+            return nextFollowed;
+        });
+    }, []);
+
+    const fetchHomeData = useCallback(async () => {
+        if (!targetUserId) return;
+        setLoading(true);
+        setNotesLoading(true);
         try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_BASIC_INFO, { id: targetUserId }));
-            if (!response.ok) throw new Error(`HTTP错误! 状态: ${response.status}`);
-            const result = await response.json();
-            if (result.code !== 0) throw new Error(result.msg || '获取用户信息失败');
-            setUserData(result.data);
+            const result = await fetchUserHome(targetUserId, currentUserId || undefined);
+            setUserData(result.user);
+            setUserStats(result.stats || { following_count: 0, followers_count: 0, likes_received: 0, favorites_received: 0 });
+            setNotes(result.notes || []);
+            setFollowed(!!result.followed);
             setError(null);
         } catch (err: any) {
-            setError(err.message);
+            setUserData(null);
+            setError(err.message || '获取用户主页失败');
         } finally {
             setLoading(false);
-        }
-    }, [targetUserId]);
-
-    const fetchStats = useCallback(async () => {
-        try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.USER_STATS, { user_id: targetUserId }));
-            const result = await response.json();
-            if (result.code === 0) setUserStats(result.data);
-        } catch {}
-    }, [targetUserId]);
-
-    const fetchNotes = useCallback(async () => {
-        try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, {
-                page: 1,
-                author_id: targetUserId,
-                user_id: currentUserId || 0,
-            }));
-            const result = await response.json();
-            setNotes(Array.isArray(result) ? result : (result.data || []));
-        } catch {} finally {
             setNotesLoading(false);
         }
     }, [targetUserId, currentUserId]);
 
-    const checkFollowStatus = useCallback(async () => {
-        if (!currentUserId) return;
-        try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.FOLLOWING, { user_id: currentUserId, page: 1 }));
-            const result = await response.json();
-            if (result.code === 0) {
-                const list: any[] = result.data || [];
-                setFollowed(list.some((u: any) => u.id === targetUserId));
-            }
-        } catch {}
-    }, [currentUserId, targetUserId]);
-
     useEffect(() => {
-        fetchUserData();
-        fetchStats();
-        fetchNotes();
-        checkFollowStatus();
-    }, [fetchUserData, fetchStats, fetchNotes, checkFollowStatus]);
+        fetchHomeData();
+    }, [fetchHomeData]);
 
     useEffect(() => {
         const off = EventBus.on(Events.ARTICLE_LIKE_CHANGED, ({ articleId, liked, likeCount }: LikeChangedPayload) => {
@@ -148,25 +134,25 @@ export default function UserProfileScreen() {
         return off;
     }, []);
 
+    useEffect(() => {
+        const off = EventBus.on(Events.FOLLOW_CHANGED, ({ userId, followed }: { userId: number; followed: boolean }) => {
+            if (userId === targetUserId) {
+                applyFollowState(followed);
+            }
+        });
+        return off;
+    }, [applyFollowState, targetUserId]);
+
     const handleFollow = async () => {
         if (!isLoggedIn) { router.push('/login'); return; }
         const prev = followed;
-        setFollowed(!prev);
+        applyFollowState(!prev);
         try {
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_FOLLOW}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ follower_id: currentUserId, following_id: targetUserId }),
-            });
-            const result = await response.json();
-            if (result.code !== 0) {
-                setFollowed(prev);
-            } else {
-                EventBus.emit(Events.FOLLOW_CHANGED, { userId: targetUserId, followed: !prev });
-                fetchStats();
-            }
+            const result = await toggleFollow(targetUserId, Number(currentUserId));
+            applyFollowState(result.followed);
+            EventBus.emit(Events.FOLLOW_CHANGED, { userId: targetUserId, followed: result.followed });
         } catch {
-            setFollowed(prev);
+            applyFollowState(prev);
         }
     };
 
@@ -176,16 +162,8 @@ export default function UserProfileScreen() {
         const newCount = newLiked ? article.likes + 1 : Math.max(article.likes - 1, 0);
         setNotes(prev => prev.map(it => it.id === article.id ? { ...it, liked: newLiked, likes: newCount } : it));
         try {
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_LIKE}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ article_id: article.id, user_id: currentUserId }),
-            });
-            const result = await response.json();
-            if (result.code === 0) {
-                EventBus.emit(Events.ARTICLE_LIKE_CHANGED, { articleId: article.id, liked: newLiked, likeCount: newCount } as LikeChangedPayload);
-            } else {
-                setNotes(prev => prev.map(it => it.id === article.id ? { ...it, liked: article.liked, likes: article.likes } : it));
-            }
+            await toggleArticleLike(article.id);
+            EventBus.emit(Events.ARTICLE_LIKE_CHANGED, { articleId: article.id, liked: newLiked, likeCount: newCount } as LikeChangedPayload);
         } catch {
             setNotes(prev => prev.map(it => it.id === article.id ? { ...it, liked: article.liked, likes: article.likes } : it));
         }

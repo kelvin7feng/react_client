@@ -100,6 +100,38 @@ export async function requestJson<T>(
   return payload as ApiEnvelope<T>;
 }
 
+export async function requestRawJson<T>(
+  path: string,
+  options: RequestInit & { query?: Query } = {}
+): Promise<T> {
+  const { query, ...requestOptions } = options;
+  const response = await fetch(buildUrl(path, query), {
+    ...requestOptions,
+    headers: await buildHeaders(requestOptions.headers, requestOptions.body ?? null),
+  });
+
+  const rawText = await response.text();
+  let payload: unknown = null;
+
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      throw new ApiError('响应解析失败', response.status);
+    }
+  }
+
+  if (!response.ok) {
+    throw new ApiError(`HTTP ${response.status}`, response.status, undefined, payload);
+  }
+
+  return payload as T;
+}
+
 export function getJson<T>(path: string, query?: Query) {
   return requestJson<T>(path, { method: 'GET', query });
+}
+
+export function getRawJson<T>(path: string, query?: Query) {
+  return requestRawJson<T>(path, { method: 'GET', query });
 }

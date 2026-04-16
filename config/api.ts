@@ -43,6 +43,7 @@ export const API_ENDPOINTS = {
   FOLLOWERS: '/followers',
   FOLLOWING: '/following',
   MUTUAL_FOLLOWS: '/mutualfollows',
+  FOLLOW_STATUS: '/followstatus',
 
   // 我的 Tab
   MY_FAVORITES: '/myfavorites',
@@ -73,6 +74,11 @@ export const API_ENDPOINTS = {
 
   // 工具
   DECODE_QRCODE: '/decode-qrcode',
+
+  // BFF
+  BFF_MOBILE_ME_HOME: '/bff/mobile/me/home',
+  BFF_MOBILE_USERS: '/bff/mobile/users',
+  BFF_MOBILE_ARTICLES: '/bff/mobile/articles',
 } as const;
 
 /**

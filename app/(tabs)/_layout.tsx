@@ -12,27 +12,26 @@ import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { fetchUnreadCount as fetchUnreadCountSummary } from '@/features/notification/api';
 import { useAuth } from '../../config/auth';
-import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 import { useWebSocket } from '../../config/useWebSocket';
 
 export default function TabLayout() {
     const router = useRouter();
-    const { isLoggedIn, userId } = useAuth();
+    const { isLoggedIn, token } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const fetchUnreadCount = useCallback(async () => {
-        if (!userId || !isLoggedIn) { setUnreadCount(0); return; }
+        if (!isLoggedIn) { setUnreadCount(0); return; }
         try {
-            const res = await fetch(buildApiUrl(API_ENDPOINTS.UNREAD_COUNT, { user_id: userId }));
-            const json = await res.json();
-            if (json.code === 0) setUnreadCount(json.data?.count || 0);
+            const data = await fetchUnreadCountSummary();
+            setUnreadCount(data.count || 0);
         } catch {}
-    }, [userId, isLoggedIn]);
+    }, [isLoggedIn]);
 
     useWebSocket(
-        isLoggedIn ? userId : null,
+        isLoggedIn ? token : null,
         useCallback((type: string, data: any) => {
             if (type === 'unread_update' && data?.count !== undefined) {
                 setUnreadCount(data.count);

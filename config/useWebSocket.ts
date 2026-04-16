@@ -11,7 +11,7 @@ const WS_EVENT_PREFIX = 'ws:';
 type MessageHandler = (type: string, data: any) => void;
 
 export function useWebSocket(
-    userId: string | number | null | undefined,
+    token: string | null | undefined,
     onMessage: MessageHandler,
 ) {
     const wsRef = useRef<WebSocket | null>(null);
@@ -37,10 +37,10 @@ export function useWebSocket(
     }, []);
 
     const connect = useCallback(() => {
-        if (!userId || unmountedRef.current) return;
+        if (!token || unmountedRef.current) return;
         cleanup();
 
-        const ws = new WebSocket(`${WS_URL}?user_id=${userId}`);
+        const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -68,7 +68,7 @@ export function useWebSocket(
             retriesRef.current += 1;
             timerRef.current = setTimeout(connect, delay);
         };
-    }, [userId, cleanup]);
+    }, [token, cleanup]);
 
     useEffect(() => {
         unmountedRef.current = false;

@@ -22,7 +22,16 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../../config/api';
+import { fetchArticlePage } from '@/features/bff/api';
+import {
+    createComment,
+    fetchChildComments as fetchChildCommentList,
+    toggleArticleFavorite,
+    toggleArticleLike as toggleArticleLikeRequest,
+    toggleCommentLike as toggleCommentLikeRequest,
+} from '@/features/community/api';
+import { toggleFollow } from '@/features/social/api';
+import { API_BASE_URL } from '../../config/api';
 import { Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
@@ -73,46 +82,42 @@ export default function ArticleDetailScreen() {
 
     const isOwnArticle = article?.author_id === userId;
 
-    const fetchArticle = useCallback(async () => {
+    const fetchPage = useCallback(async (withLoading = true) => {
+        if (withLoading) {
+            setLoading(true);
+        }
         try {
-            const response = await fetch(
-                buildApiUrl(API_ENDPOINTS.GET_ARTICLE_DETAIL, {
-                    article_id: articleId!,
-                    user_id: userId || 0,
-                })
-            );
-            const result = await response.json();
-            if (result.code === 0) {
-                setArticle(result.data);
-                setLiked(result.data.liked);
-                setLikeCount(result.data.like_count);
-                setFavorited(result.data.favorited);
-                setFavoriteCount(result.data.favorite_count || 0);
-                setFollowed(result.data.followed);
-            }
+            const result = await fetchArticlePage(Number(articleId), userId || undefined);
+            setArticle(result.article);
+            setComments(result.comments || []);
+            setLiked(result.article.liked);
+            setLikeCount(result.article.like_count);
+            setFavorited(result.article.favorited);
+            setFavoriteCount(result.article.favorite_count || 0);
+            setFollowed(result.article.followed);
         } catch (err) {
-            Alert.alert('加载失败', '无法获取文章详情');
+            if (withLoading) {
+                Alert.alert('加载失败', '无法获取文章详情');
+            }
         } finally {
-            setLoading(false);
+            if (withLoading) {
+                setLoading(false);
+            }
         }
     }, [articleId, userId]);
 
-    const fetchComments = useCallback(async () => {
-        try {
-            const response = await fetch(
-                buildApiUrl(API_ENDPOINTS.GET_COMMENTS, { article_id: articleId!, page: 1 })
-            );
-            const result = await response.json();
-            if (result.code === 0) {
-                setComments(result.data || []);
-            }
-        } catch { }
-    }, [articleId]);
+    useEffect(() => {
+        fetchPage();
+    }, [fetchPage]);
 
     useEffect(() => {
-        fetchArticle();
-        fetchComments();
-    }, [fetchArticle, fetchComments]);
+        const off = EventBus.on(Events.FOLLOW_CHANGED, ({ userId, followed }: { userId: number; followed: boolean }) => {
+            if (article?.author_id === userId) {
+                setFollowed(followed);
+            }
+        });
+        return off;
+    }, [article?.author_id]);
 
     const handleLike = async () => {
         if (!isLoggedIn) { router.push('/login'); return; }
@@ -124,22 +129,12 @@ export default function ArticleDetailScreen() {
         setLikeCount(newCount);
 
         try {
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_LIKE}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ article_id: Number(articleId), user_id: userId }),
-            });
-            const result = await response.json();
-            if (result.code !== 0) {
-                setLiked(prevLiked);
-                setLikeCount(prevCount);
-            } else {
-                EventBus.emit(Events.ARTICLE_LIKE_CHANGED, {
-                    articleId: Number(articleId),
-                    liked: newLiked,
-                    likeCount: newCount,
-                } as LikeChangedPayload);
-            }
+            await toggleArticleLikeRequest(Number(articleId));
+            EventBus.emit(Events.ARTICLE_LIKE_CHANGED, {
+                articleId: Number(articleId),
+                liked: newLiked,
+                likeCount: newCount,
+            } as LikeChangedPayload);
         } catch {
             setLiked(prevLiked);
             setLikeCount(prevCount);
@@ -151,23 +146,13 @@ export default function ArticleDetailScreen() {
         if (!commentText.trim()) return;
         setSubmitting(true);
         try {
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.CREATE_COMMENT}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    article_id: Number(articleId),
-                    author_id: userId,
-                    content: commentText.trim(),
-                }),
+            await createComment({
+                articleId: Number(articleId),
+                content: commentText.trim(),
             });
-            const result = await response.json();
-            if (result.code === 0) {
-                setCommentText('');
-                inputRef.current?.blur();
-                fetchComments();
-            } else {
-                Alert.alert('评论失败', result.msg);
-            }
+            setCommentText('');
+            inputRef.current?.blur();
+            await fetchPage(false);
         } catch {
             Alert.alert('评论失败', '网络错误');
         } finally {
@@ -235,17 +220,9 @@ export default function ArticleDetailScreen() {
         const prev = followed;
         setFollowed(!prev);
         try {
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_FOLLOW}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ follower_id: userId, following_id: article.author_id }),
-            });
-            const result = await response.json();
-            if (result.code !== 0) {
-                setFollowed(prev);
-            } else {
-                EventBus.emit(Events.FOLLOW_CHANGED, { userId: article.author_id, followed: !prev });
-            }
+            const result = await toggleFollow(article.author_id, Number(userId));
+            setFollowed(result.followed);
+            EventBus.emit(Events.FOLLOW_CHANGED, { userId: article.author_id, followed: result.followed });
         } catch {
             setFollowed(prev);
         }
@@ -260,18 +237,8 @@ export default function ArticleDetailScreen() {
         setFavorited(newFavorited);
         setFavoriteCount(newCount);
         try {
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_FAVORITE}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ article_id: Number(articleId), user_id: userId }),
-            });
-            const result = await response.json();
-            if (result.code !== 0) {
-                setFavorited(prevFavorited);
-                setFavoriteCount(prevCount);
-            } else {
-                EventBus.emit(Events.ARTICLE_FAVORITE_CHANGED, { articleId: Number(articleId), favorited: newFavorited });
-            }
+            await toggleArticleFavorite(Number(articleId));
+            EventBus.emit(Events.ARTICLE_FAVORITE_CHANGED, { articleId: Number(articleId), favorited: newFavorited });
         } catch {
             setFavorited(prevFavorited);
             setFavoriteCount(prevCount);
@@ -292,23 +259,7 @@ export default function ArticleDetailScreen() {
             return c;
         }));
         try {
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_COMMENT_LIKE}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ comment_id: commentId, user_id: userId }),
-            });
-            const result = await response.json();
-            if (result.code !== 0) {
-                setComments(prev => prev.map(c => {
-                    if (c.id === commentId) return { ...c, liked: currentlyLiked, like_count: currentCount };
-                    if (c.children) {
-                        return { ...c, children: c.children.map((ch: any) =>
-                            ch.id === commentId ? { ...ch, liked: currentlyLiked, like_count: currentCount } : ch
-                        )};
-                    }
-                    return c;
-                }));
-            }
+            await toggleCommentLikeRequest(commentId);
         } catch {
             setComments(prev => prev.map(c => {
                 if (c.id === commentId) return { ...c, liked: currentlyLiked, like_count: currentCount };
@@ -324,13 +275,10 @@ export default function ArticleDetailScreen() {
 
     const handleViewAllReplies = async (parentId: number) => {
         try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.GET_CHILD_COMMENTS, { parent_id: parentId, page: 1 }));
-            const result = await response.json();
-            if (result.code === 0) {
-                setComments(prev => prev.map(c =>
-                    c.id === parentId ? { ...c, children: result.data, _expanded: true } : c
-                ));
-            }
+            const result = await fetchChildCommentList(parentId, 1);
+            setComments(prev => prev.map(c =>
+                c.id === parentId ? { ...c, children: result, _expanded: true } : c
+            ));
         } catch {}
     };
 

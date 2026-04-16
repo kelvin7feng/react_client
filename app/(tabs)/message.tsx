@@ -10,7 +10,9 @@ import Animated, {
     useSharedValue, useAnimatedStyle, withTiming, runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { buildApiUrl, API_BASE_URL, API_ENDPOINTS } from '../../config/api';
+import { deleteConversation as deleteConversationRequest, fetchConversations as fetchConversationList, toggleConversationPin as toggleConversationPinRequest } from '@/features/im/api';
+import type { ConversationItem } from '@/features/im/types';
+import { fetchUnreadCount as fetchUnreadCountSummary } from '@/features/notification/api';
 import { Colors, Spacing, FontSize } from '../../config/styles';
 import { useAuth } from '../../config/auth';
 import { RemoteImage } from '../../components/RemoteImage';
@@ -191,7 +193,7 @@ export default function MessageScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { userId, isLoggedIn } = useAuth();
-    const [conversations, setConversations] = useState<any[]>([]);
+    const [conversations, setConversations] = useState<ConversationItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [unreadByType, setUnreadByType] = useState<UnreadByType>({ likes: 0, follows: 0, comments: 0 });
@@ -201,33 +203,26 @@ export default function MessageScreen() {
         if (!userId) return;
         if (showLoading) setLoading(true);
         try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.CONVERSATIONS, { user_id: userId, page: 1 }));
-            const result = await response.json();
-            if (result.code === 0) {
-                const data = result.data || [];
-                setConversations(data);
-                preloadSessions(data.map((c: any) => ({
-                    conversationId: String(c.id),
-                    peerId: c.user1_id === userId ? c.user2_id : c.user1_id,
-                })));
-            }
+            const data = await fetchConversationList(1);
+            setConversations(data || []);
+            preloadSessions((data || []).map((c) => ({
+                conversationId: String(c.id),
+                peerId: c.user1_id === userId ? c.user2_id : c.user1_id,
+            })));
         } catch {} finally { setLoading(false); setRefreshing(false); }
     }, [userId]);
 
     const fetchUnreadByType = useCallback(async () => {
-        if (!userId) return;
+        if (!isLoggedIn) return;
         try {
-            const res = await fetch(buildApiUrl(API_ENDPOINTS.UNREAD_COUNT, { user_id: userId }));
-            const json = await res.json();
-            if (json.code === 0) {
-                setUnreadByType({
-                    likes: json.data?.likes || 0,
-                    follows: json.data?.follows || 0,
-                    comments: json.data?.comments || 0,
-                });
-            }
+            const data = await fetchUnreadCountSummary();
+            setUnreadByType({
+                likes: data.likes || 0,
+                follows: data.follows || 0,
+                comments: data.comments || 0,
+            });
         } catch {}
-    }, [userId]);
+    }, [isLoggedIn]);
 
     const hasLoadedRef = useRef(false);
 
@@ -241,21 +236,9 @@ export default function MessageScreen() {
         hasLoadedRef.current = true;
     }, [isLoggedIn, fetchConversations, fetchUnreadByType]));
 
-    useWSEvent('new_message', useCallback(async () => {
-        if (!userId) return;
-        try {
-            const response = await fetch(buildApiUrl(API_ENDPOINTS.CONVERSATIONS, { user_id: userId, page: 1 }));
-            const result = await response.json();
-            if (result.code === 0) {
-                const data = result.data || [];
-                setConversations(data);
-                preloadSessions(data.map((c: any) => ({
-                    conversationId: String(c.id),
-                    peerId: c.user1_id === userId ? c.user2_id : c.user1_id,
-                })));
-            }
-        } catch {}
-    }, [userId]));
+    useWSEvent('new_message', useCallback(() => {
+        fetchConversations();
+    }, [fetchConversations]));
 
     const handleRefresh = () => {
         setRefreshing(true);
@@ -266,17 +249,10 @@ export default function MessageScreen() {
 
     const handleTogglePin = useCallback(async (conv: any) => {
         try {
-            const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_CONVERSATION_PIN}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ conversation_id: conv.id, user_id: Number(userId) }),
-            });
-            const json = await res.json();
-            if (json.code === 0) {
-                fetchConversations();
-            }
+            await toggleConversationPinRequest(conv.id);
+            fetchConversations();
         } catch {}
-    }, [userId, fetchConversations]);
+    }, [fetchConversations]);
 
     const handleDelete = useCallback((conv: any) => {
         const isUser1 = conv.user1_id === userId;
@@ -290,15 +266,8 @@ export default function MessageScreen() {
                     text: '删除', style: 'destructive',
                     onPress: async () => {
                         try {
-                            const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.DELETE_CONVERSATION}`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ conversation_id: conv.id, user_id: Number(userId) }),
-                            });
-                            const json = await res.json();
-                            if (json.code === 0) {
-                                setConversations(prev => prev.filter(c => c.id !== conv.id));
-                            }
+                            await deleteConversationRequest(conv.id);
+                            setConversations(prev => prev.filter(c => c.id !== conv.id));
                         } catch {}
                     },
                 },

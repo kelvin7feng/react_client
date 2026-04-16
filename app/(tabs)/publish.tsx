@@ -17,8 +17,8 @@ import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { publishArticle } from '@/features/community/api';
 import { CommonStyles, Colors, Spacing, FontSize } from '../../config/styles';
-import { API_BASE_URL, API_ENDPOINTS } from '../../config/api';
 import { useAuth } from '../../config/auth';
 
 const DRAFT_KEY = 'publish_draft';
@@ -158,7 +158,6 @@ export default function PublishScreen() {
             const formData = new FormData();
             formData.append('title', title.trim());
             formData.append('content', content.trim());
-            formData.append('author_id', String(userId));
 
             if (selectedTopic) {
                 formData.append('topic', selectedTopic);
@@ -186,29 +185,19 @@ export default function PublishScreen() {
                 } as any);
             }
 
-            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PUBLISH_ARTICLE}`, {
-                method: 'POST',
-                body: formData,
-            });
-
-            const result = await response.json();
-
-            if (result.code === 0) {
-                setSelectedImages([]);
-                setTitle('');
-                setContent('');
-                setSelectedTopic('');
-                setLocation('');
-                setLocationDetail(null);
-                await clearDraft();
-                Alert.alert('发布成功', '您的内容已成功发布', [
-                    { text: '确定', onPress: () => router.back() }
-                ]);
-            } else {
-                Alert.alert('发布失败', result.msg || '请稍后重试');
-            }
+            await publishArticle(formData);
+            setSelectedImages([]);
+            setTitle('');
+            setContent('');
+            setSelectedTopic('');
+            setLocation('');
+            setLocationDetail(null);
+            await clearDraft();
+            Alert.alert('发布成功', '您的内容已成功发布', [
+                { text: '确定', onPress: () => router.back() }
+            ]);
         } catch (error) {
-            Alert.alert('发布失败', '网络错误，请检查网络连接后重试');
+            Alert.alert('发布失败', error instanceof Error ? error.message : '网络错误，请检查网络连接后重试');
         } finally {
             setIsPublishing(false);
         }

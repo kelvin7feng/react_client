@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../config/api';
+import { fetchFollowers, fetchFollowing, fetchMutualFollows, toggleFollow } from '@/features/social/api';
+import type { SocialUser } from '@/features/social/types';
+import { EventBus, Events } from '@/config/events';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
 import { navigateToUserProfile } from '../config/utils';
@@ -27,22 +29,14 @@ const TABS = [
     { key: 'followers', label: '粉丝' },
 ];
 
-interface UserItem {
-    id: number;
-    username: string;
-    avatar: string;
-    signature: string;
-    is_followed: boolean;
-}
-
 const UserListItem = ({
     item,
     onToggleFollow,
     isLoading,
     onUserPress,
 }: {
-    item: UserItem;
-    onToggleFollow: (user: UserItem) => void;
+    item: SocialUser;
+    onToggleFollow: (user: SocialUser) => void;
     isLoading: boolean;
     onUserPress: (userId: number) => void;
 }) => (
@@ -79,10 +73,10 @@ const TabPage = ({
     followLoading,
     onUserPress,
 }: {
-    items: UserItem[];
+    items: SocialUser[];
     loading: boolean;
     emptyText: string;
-    onToggleFollow: (user: UserItem) => void;
+    onToggleFollow: (user: SocialUser) => void;
     followLoading: Record<number, boolean>;
     onUserPress: (userId: number) => void;
 }) => (
@@ -116,9 +110,9 @@ export default function FollowListScreen() {
     const params = useLocalSearchParams<{ tab?: string }>();
     const initialIndex = params.tab === 'followers' ? 2 : params.tab === 'mutual' ? 0 : 1;
 
-    const [mutualList, setMutualList] = useState<UserItem[]>([]);
-    const [followingList, setFollowingList] = useState<UserItem[]>([]);
-    const [followersList, setFollowersList] = useState<UserItem[]>([]);
+    const [mutualList, setMutualList] = useState<SocialUser[]>([]);
+    const [followingList, setFollowingList] = useState<SocialUser[]>([]);
+    const [followersList, setFollowersList] = useState<SocialUser[]>([]);
     const [initialLoading, setInitialLoading] = useState(true);
     const [followLoading, setFollowLoading] = useState<Record<number, boolean>>({});
 
@@ -126,49 +120,63 @@ export default function FollowListScreen() {
         if (!userId) return;
         let cancelled = false;
         const fetchAll = async () => {
+            setInitialLoading(true);
             const [mutualRes, followingRes, followersRes] = await Promise.allSettled([
-                fetch(buildApiUrl(API_ENDPOINTS.MUTUAL_FOLLOWS, { user_id: userId, page: 1 })).then(r => r.json()),
-                fetch(buildApiUrl(API_ENDPOINTS.FOLLOWING, { user_id: userId, page: 1 })).then(r => r.json()),
-                fetch(buildApiUrl(API_ENDPOINTS.FOLLOWERS, { user_id: userId, current_user_id: userId, page: 1 })).then(r => r.json()),
+                fetchMutualFollows(Number(userId), 1),
+                fetchFollowing(Number(userId), 1),
+                fetchFollowers(Number(userId), 1, Number(userId)),
             ]);
             if (cancelled) return;
-            if (mutualRes.status === 'fulfilled' && mutualRes.value.code === 0) setMutualList(mutualRes.value.data || []);
-            if (followingRes.status === 'fulfilled' && followingRes.value.code === 0) setFollowingList(followingRes.value.data || []);
-            if (followersRes.status === 'fulfilled' && followersRes.value.code === 0) setFollowersList(followersRes.value.data || []);
+            if (mutualRes.status === 'fulfilled') setMutualList(mutualRes.value || []);
+            if (followingRes.status === 'fulfilled') setFollowingList(followingRes.value || []);
+            if (followersRes.status === 'fulfilled') setFollowersList(followersRes.value || []);
             setInitialLoading(false);
         };
         fetchAll();
         return () => { cancelled = true; };
     }, [userId]);
 
-    const handleToggleFollow = useCallback(async (targetUser: UserItem) => {
+    const handleToggleFollow = useCallback(async (targetUser: SocialUser) => {
         if (!userId || followLoading[targetUser.id]) return;
         setFollowLoading(prev => ({ ...prev, [targetUser.id]: true }));
         try {
-            const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_FOLLOW}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ follower_id: Number(userId), following_id: targetUser.id }),
-            });
-            const result = await res.json();
-            if (result.code === 0) {
-                const newFollowed = result.data.followed;
-                const updateList = (list: UserItem[]) =>
-                    list.map(u => u.id === targetUser.id ? { ...u, is_followed: newFollowed } : u);
-                setFollowingList(updateList);
-                setFollowersList(updateList);
-                setMutualList(updateList);
+            const result = await toggleFollow(targetUser.id, Number(userId));
+            const newFollowed = result.followed;
+
+            setFollowersList(prev =>
+                prev.map(u => u.id === targetUser.id ? { ...u, is_followed: newFollowed } : u)
+            );
+
+            if (newFollowed) {
+                setFollowingList(prev => {
+                    const nextUser = { ...targetUser, is_followed: true };
+                    const exists = prev.some(u => u.id === targetUser.id);
+                    return exists ? prev.map(u => u.id === targetUser.id ? nextUser : u) : [nextUser, ...prev];
+                });
+
+                if (followersList.some(u => u.id === targetUser.id)) {
+                    setMutualList(prev => {
+                        const nextUser = { ...targetUser, is_followed: true };
+                        const exists = prev.some(u => u.id === targetUser.id);
+                        return exists ? prev.map(u => u.id === targetUser.id ? nextUser : u) : [nextUser, ...prev];
+                    });
+                }
+            } else {
+                setFollowingList(prev => prev.filter(u => u.id !== targetUser.id));
+                setMutualList(prev => prev.filter(u => u.id !== targetUser.id));
             }
+
+            EventBus.emit(Events.FOLLOW_CHANGED, { userId: targetUser.id, followed: newFollowed });
         } catch {} finally {
             setFollowLoading(prev => ({ ...prev, [targetUser.id]: false }));
         }
-    }, [userId, followLoading]);
+    }, [userId, followLoading, followersList]);
 
     const handleUserPress = useCallback((targetUserId: number) => {
         navigateToUserProfile(router, targetUserId, userId ?? null);
     }, [router, userId]);
 
-    const tabData: Record<TabKey, { items: UserItem[]; emptyText: string }> = {
+    const tabData: Record<TabKey, { items: SocialUser[]; emptyText: string }> = {
         mutual: { items: mutualList, emptyText: '暂无互相关注' },
         following: { items: followingList, emptyText: '暂无关注' },
         followers: { items: followersList, emptyText: '暂无粉丝' },

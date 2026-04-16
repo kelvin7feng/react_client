@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../../config/api';
+import { fetchFollowingArticles, fetchNearbyArticles, fetchRecommendations, toggleArticleLike } from '@/features/community/api';
 import { CommonStyles, Colors, Spacing, FontSize } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
@@ -201,30 +201,14 @@ export default function Index() {
     });
 
     try {
-      let url: string;
+      let data: any[] = [];
       if (tab === 'following') {
-        url = buildApiUrl(API_ENDPOINTS.FOLLOWING_ARTICLES, {
-          page: pageNum,
-          user_id: userId || 0,
-        });
+        data = await fetchFollowingArticles(pageNum);
       } else if (tab === 'nearby') {
-        url = buildApiUrl(API_ENDPOINTS.NEARBY_ARTICLES, {
-          page: pageNum,
-          user_id: userId || 0,
-          city: city,
-        });
+        data = await fetchNearbyArticles(pageNum, city);
       } else {
-        url = buildApiUrl(API_ENDPOINTS.RECOMMENDATIONS, {
-          page: pageNum,
-          user_id: userId || 0,
-        });
+        data = await fetchRecommendations(pageNum);
       }
-
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP错误! 状态: ${response.status}`);
-      }
-      const data = await response.json();
 
       setTabStates(prev => {
         const current = prev[tab];
@@ -323,32 +307,12 @@ export default function Index() {
     });
 
     try {
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOGGLE_LIKE}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ article_id: article.id, user_id: userId }),
-      });
-      const result = await response.json();
-      if (result.code === 0) {
-        EventBus.emit(Events.ARTICLE_LIKE_CHANGED, {
-          articleId: article.id,
-          liked: newLiked,
-          likeCount: newCount,
-        } as LikeChangedPayload);
-      } else {
-        setTabStates(prev => {
-          const next = { ...prev };
-          for (const key of TAB_ORDER) {
-            next[key] = {
-              ...prev[key],
-              items: prev[key].items.map(it =>
-                it.id === article.id ? { ...it, liked: article.liked, likes: article.likes } : it
-              ),
-            };
-          }
-          return next;
-        });
-      }
+      await toggleArticleLike(article.id);
+      EventBus.emit(Events.ARTICLE_LIKE_CHANGED, {
+        articleId: article.id,
+        liked: newLiked,
+        likeCount: newCount,
+      } as LikeChangedPayload);
     } catch {
       setTabStates(prev => {
         const next = { ...prev };
