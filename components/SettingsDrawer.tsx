@@ -12,9 +12,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useBasicInfo } from '@/features/profile/hooks';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
-import { API_ENDPOINTS, buildApiUrl } from '../config/api';
 
 const DRAWER_WIDTH = Dimensions.get('window').width * 0.75;
 
@@ -40,20 +40,9 @@ export function SettingsDrawer({ visible, onClose }: { visible: boolean; onClose
     const auth = useAuth();
     const router = useRouter();
     const [showConfirm, setShowConfirm] = useState(false);
-    const [username, setUsername] = useState('');
 
-    useEffect(() => {
-        if (visible && auth.userId) {
-            fetch(buildApiUrl(API_ENDPOINTS.GET_BASIC_INFO, { id: auth.userId }))
-                .then(res => res.json())
-                .then(result => {
-                    if (result.code === 0 && result.data?.username) {
-                        setUsername(result.data.username);
-                    }
-                })
-                .catch(() => {});
-        }
-    }, [visible, auth.userId]);
+    const { data: profileData } = useBasicInfo(auth.userId);
+    const username = profileData?.username || '';
 
     useEffect(() => {
         if (visible) {

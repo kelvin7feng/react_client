@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { publishArticle } from '@/features/community/api';
+import { useQueryClient } from '@tanstack/react-query';
 import { CommonStyles, Colors, Spacing, FontSize } from '../../config/styles';
 import { useAuth } from '../../config/auth';
 
@@ -26,6 +27,7 @@ const DRAFT_KEY = 'publish_draft';
 export default function PublishScreen() {
     const router = useRouter();
     const { userId } = useAuth();
+    const queryClient = useQueryClient();
     const [selectedImages, setSelectedImages] = useState<string[]>([]);
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
@@ -186,6 +188,8 @@ export default function PublishScreen() {
             }
 
             await publishArticle(formData);
+            queryClient.invalidateQueries({ queryKey: ['myHome'] });
+            queryClient.invalidateQueries({ queryKey: ['feed'] });
             setSelectedImages([]);
             setTitle('');
             setContent('');

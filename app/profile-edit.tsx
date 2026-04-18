@@ -7,7 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { fetchBasicInfo, updateProfile } from '@/features/profile/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { updateProfile } from '@/features/profile/api';
+import { useBasicInfo } from '@/features/profile/hooks';
+import { queryKeys } from '@/shared/query/keys';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
 
@@ -15,7 +18,8 @@ export default function ProfileEditScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const auth = useAuth();
-    const [loading, setLoading] = useState(true);
+    const qc = useQueryClient();
+    const { data: profileData, isLoading: loading } = useBasicInfo(auth.userId);
     const [saving, setSaving] = useState(false);
     const [username, setUsername] = useState('');
     const [signature, setSignature] = useState('');
@@ -23,19 +27,17 @@ export default function ProfileEditScreen() {
     const [birthday, setBirthday] = useState('');
     const [avatarUri, setAvatarUri] = useState('');
     const [newAvatarFile, setNewAvatarFile] = useState<any>(null);
+    const [initialized, setInitialized] = useState(false);
 
     useEffect(() => {
-        (async () => {
-            try {
-                const d = await fetchBasicInfo(auth.userId || undefined);
-                setUsername(d.username || '');
-                setSignature(d.signature || '');
-                setGender(d.gender || 0);
-                setBirthday(d.birthday || '');
-                setAvatarUri(d.avatar || '');
-            } catch {} finally { setLoading(false); }
-        })();
-    }, [auth.userId]);
+        if (!profileData || initialized) return;
+        setUsername(profileData.username || '');
+        setSignature(profileData.signature || '');
+        setGender(profileData.gender || 0);
+        setBirthday(profileData.birthday || '');
+        setAvatarUri(profileData.avatar || '');
+        setInitialized(true);
+    }, [profileData, initialized]);
 
     const pickAvatar = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -71,6 +73,8 @@ export default function ProfileEditScreen() {
                 username: username.trim(),
                 avatar: newAvatar,
             });
+            qc.invalidateQueries({ queryKey: queryKeys.basicInfo(auth.userId) });
+            qc.invalidateQueries({ queryKey: queryKeys.myHome(auth.userId) });
             Alert.alert('成功', '资料已更新', [{ text: '确定', onPress: () => router.back() }]);
         } catch (error) {
             Alert.alert('失败', error instanceof Error ? error.message : '网络错误');

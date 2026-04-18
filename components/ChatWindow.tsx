@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, FlatList,
     StyleSheet, KeyboardAvoidingView, Platform, Keyboard, ScrollView, Dimensions,
+    Animated as RNAnimated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,8 +12,8 @@ import type { ChatMessageItem } from '@/features/im/types';
 import { fetchBasicInfo } from '@/features/profile/api';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
-import { navigateToUserProfile } from '../config/utils';
 import { RemoteImage } from './RemoteImage';
+import UserProfile from './UserProfile';
 import { useWSEvent } from '../config/useWebSocket';
 import { closeChat, replaceSession } from '../config/chatManager';
 
@@ -92,6 +93,8 @@ export default function ChatWindow({
     const [myAvatar, setMyAvatar] = useState<string>('');
     const [activePanel, setActivePanel] = useState<PanelType>('none');
     const [keyboardVisible, setKeyboardVisible] = useState(false);
+    const [profileUserId, setProfileUserId] = useState<number | null>(null);
+    const profileSlideAnim = useRef(new RNAnimated.Value(SCREEN_WIDTH)).current;
 
     const listRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
@@ -200,6 +203,9 @@ export default function ChatWindow({
         if (isVisible && dataLoaded.current && messages.length > 0) {
             scrollToBottom(false);
         }
+        if (!isVisible) {
+            setProfileUserId(null);
+        }
     }, [isVisible]);
 
     const handleSend = async () => {
@@ -255,9 +261,27 @@ export default function ChatWindow({
         setActivePanel('none');
     };
 
+    const openProfile = useCallback((uid: number) => {
+        setProfileUserId(uid);
+        profileSlideAnim.setValue(SCREEN_WIDTH);
+        RNAnimated.timing(profileSlideAnim, {
+            toValue: 0,
+            duration: 280,
+            useNativeDriver: true,
+        }).start();
+    }, []);
+
+    const closeProfile = useCallback(() => {
+        RNAnimated.timing(profileSlideAnim, {
+            toValue: SCREEN_WIDTH,
+            duration: 280,
+            useNativeDriver: true,
+        }).start(() => setProfileUserId(null));
+    }, []);
+
     const handlePeerPress = useCallback(() => {
-        if (peer_id) navigateToUserProfile(router, Number(peer_id), userId ?? null);
-    }, [peer_id, userId]);
+        if (peer_id) openProfile(Number(peer_id));
+    }, [peer_id, openProfile]);
 
     const peerAvatar = peerInfo?.avatar || '';
 
@@ -281,7 +305,7 @@ export default function ChatWindow({
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={{ flex: 1 }}
-                    onPress={() => peer_id && navigateToUserProfile(router, Number(peer_id), userId ?? null)}
+                    onPress={() => peer_id && openProfile(Number(peer_id))}
                     activeOpacity={0.7}
                 >
                     <Text style={s.headerTitle} numberOfLines={1}>{peerInfo?.username || '聊天'}</Text>
@@ -362,6 +386,20 @@ export default function ChatWindow({
                     </View>
                 )}
             </KeyboardAvoidingView>
+
+            {profileUserId !== null && (
+                <RNAnimated.View style={[StyleSheet.absoluteFillObject, { transform: [{ translateX: profileSlideAnim }] }]}>
+                    <UserProfile
+                        targetUserId={profileUserId}
+                        onBack={closeProfile}
+                        showMessageButton={false}
+                        onArticlePress={(articleId) => {
+                            closeChat();
+                            router.push(`/article/${articleId}` as any);
+                        }}
+                    />
+                </RNAnimated.View>
+            )}
         </View>
     );
 }

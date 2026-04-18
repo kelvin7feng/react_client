@@ -15,11 +15,13 @@ import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
+import { useQueryClient } from '@tanstack/react-query';
 import { fetchFollowingArticles, fetchNearbyArticles, fetchRecommendations, toggleArticleLike } from '@/features/community/api';
+import { queryKeys } from '@/shared/query/keys';
 import { CommonStyles, Colors, Spacing, FontSize } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
-import { navigateToUserProfile } from '../../config/utils';
+import { navigateToUserProfile, navigateToArticle } from '../../config/utils';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
 import { SwipeTabView } from '../../components/SwipeTabView';
 import { SettingsDrawer } from '../../components/SettingsDrawer';
@@ -140,6 +142,7 @@ const initialTabState: TabState = {
 export default function Index() {
   const router = useRouter();
   const { userId, isLoggedIn } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>('recommend');
   const [city, setCity] = useState<string>('');
   const [cityDisplay, setCityDisplay] = useState<string>('');
@@ -187,6 +190,12 @@ export default function Index() {
     }));
   }, []);
 
+  const getCacheKey = useCallback((tab: TabKey, pageNum: number) => {
+    if (tab === 'following') return queryKeys.followingArticles(pageNum);
+    if (tab === 'nearby') return queryKeys.nearbyArticles(pageNum, city);
+    return queryKeys.recommendations(pageNum);
+  }, [city]);
+
   const fetchArticles = useCallback(async (tab: TabKey, pageNum = 1, append = false) => {
     if (isLoadingRef.current[tab] || (append && lastLoadedPageRef.current[tab] >= pageNum)) {
       return;
@@ -195,9 +204,38 @@ export default function Index() {
     isLoadingRef.current[tab] = true;
     lastLoadedPageRef.current[tab] = pageNum;
 
+    const cachedData = pageNum === 1
+      ? queryClient.getQueryData<any[]>(getCacheKey(tab, 1))
+      : undefined;
+
+    if (cachedData && !append) {
+      const cacheState = queryClient.getQueryState(getCacheKey(tab, 1));
+      const isStale = !cacheState || cacheState.dataUpdatedAt < Date.now() - 2 * 60 * 1000;
+
+      setTabStates(prev => ({
+        ...prev,
+        [tab]: {
+          ...prev[tab],
+          items: cachedData,
+          hasMore: cachedData.length >= 10,
+          page: 1,
+          loading: false,
+          loadingMore: false,
+          refreshing: false,
+          error: null,
+          initialized: true,
+        },
+      }));
+      isLoadingRef.current[tab] = false;
+
+      if (!isStale) return;
+    }
+
     updateTabState(tab, {
       error: null,
-      ...(append ? { loadingMore: true } : { loading: !tabStates[tab]?.refreshing }),
+      ...(append
+        ? { loadingMore: true }
+        : cachedData ? {} : { loading: !tabStates[tab]?.refreshing }),
     });
 
     try {
@@ -208,6 +246,10 @@ export default function Index() {
         data = await fetchNearbyArticles(pageNum, city);
       } else {
         data = await fetchRecommendations(pageNum);
+      }
+
+      if (pageNum === 1) {
+        queryClient.setQueryData(getCacheKey(tab, 1), data);
       }
 
       setTabStates(prev => {
@@ -238,7 +280,7 @@ export default function Index() {
     } finally {
       isLoadingRef.current[tab] = false;
     }
-  }, [userId, city, updateTabState]);
+  }, [userId, city, updateTabState, queryClient, getCacheKey]);
 
   useEffect(() => {
     lastLoadedPageRef.current.recommend = 0;
@@ -364,13 +406,13 @@ export default function Index() {
       renderItem={(item: any) => (
         <WaterfallArticleCard
           item={item}
-          onPress={(id) => router.push(`/article/${id}`)}
+          onPress={() => navigateToArticle(router, queryClient, item, userId)}
           onLike={handleCardLike}
           onAuthorPress={handleAuthorPress}
         />
       )}
     />
-  ), [router, handleCardLike, handleAuthorPress]);
+  ), [router, queryClient, userId, handleCardLike, handleAuthorPress]);
 
   const tabs = TAB_ORDER.map(key => ({
     key,

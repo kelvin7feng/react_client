@@ -10,19 +10,26 @@ import {
     Dimensions,
     Alert,
     Modal,
-    Animated,
+    Animated as RNAnimated,
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
     NativeSyntheticEvent,
     NativeScrollEvent,
 } from 'react-native';
+import Animated, {
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Clipboard from 'expo-clipboard';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchArticlePage } from '@/features/bff/api';
+import { useArticlePage } from '@/features/bff/hooks';
 import {
     createComment,
     fetchChildComments as fetchChildCommentList,
@@ -32,13 +39,18 @@ import {
 } from '@/features/community/api';
 import { toggleFollow } from '@/features/social/api';
 import { API_BASE_URL } from '../../config/api';
-import { Colors, Spacing, FontSize, Shadows } from '../../config/styles';
+import { Colors, Spacing, FontSize } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { formatCount, navigateToUserProfile } from '../../config/utils';
 import { RemoteImage } from '../../components/RemoteImage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const ARTICLE_SLIDE_DURATION = 280;
+const ARTICLE_CLOSE_DURATION = 200;
+const DISMISS_THRESHOLD = SCREEN_WIDTH * 0.25;
+const VELOCITY_THRESHOLD = 600;
+const EDGE_ZONE_WIDTH = SCREEN_WIDTH * 0.35;
 
 // 时间格式化
 const formatTime = (timeStr: string) => {
@@ -65,55 +77,125 @@ export default function ArticleDetailScreen() {
     const router = useRouter();
     const { userId, isLoggedIn } = useAuth();
 
-    const [article, setArticle] = useState<any>(null);
+    const numericArticleId = Number(articleId);
+    const { data: pageData, isLoading: loading, refetch } = useArticlePage(numericArticleId, userId);
+
+    const article = pageData?.article ?? null;
+
     const [comments, setComments] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [liked, setLiked] = useState(false);
-    const [likeCount, setLikeCount] = useState(0);
-    const [favorited, setFavorited] = useState(false);
-    const [favoriteCount, setFavoriteCount] = useState(0);
+    const [likeOverride, setLikeOverride] = useState<{ liked: boolean; count: number } | null>(null);
+    const [favOverride, setFavOverride] = useState<{ favorited: boolean; count: number } | null>(null);
+    const [followOverride, setFollowOverride] = useState<boolean | null>(null);
     const [commentText, setCommentText] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
-    const [followed, setFollowed] = useState(false);
     const [shareModalVisible, setShareModalVisible] = useState(false);
-    const shareSlideAnim = useRef(new Animated.Value(0)).current;
+    const shareSlideAnim = useRef(new RNAnimated.Value(0)).current;
     const inputRef = useRef<TextInput>(null);
+    const prevArticleIdRef = useRef<number | null>(null);
+    const translateX = useSharedValue(SCREEN_WIDTH);
+    const startX = useSharedValue(0);
+    const animatingOut = useSharedValue(0);
+
+    const finishClose = useCallback(() => {
+        router.back();
+    }, [router]);
+
+    useEffect(() => {
+        translateX.value = withTiming(0, { duration: ARTICLE_SLIDE_DURATION });
+    }, [translateX]);
+
+    const closeWithAnimation = useCallback(() => {
+        if (animatingOut.value === 1) return;
+        animatingOut.value = 1;
+        translateX.value = withTiming(SCREEN_WIDTH, { duration: ARTICLE_CLOSE_DURATION }, () => {
+            animatingOut.value = 0;
+            runOnJS(finishClose)();
+        });
+    }, [animatingOut, finishClose, translateX]);
+
+    const screenSlideStyle = useAnimatedStyle(() => {
+        const progress = 1 - Math.min(Math.max(translateX.value / SCREEN_WIDTH, 0), 1);
+        const opacity = (() => {
+            if (animatingOut.value !== 1) {
+                return 0.2 + progress * 0.8;
+            }
+            if (progress <= 0) {
+                return 0;
+            }
+            if (progress <= 0.5) {
+                return progress * 0.2;
+            }
+            return 0.1 + (progress - 0.5) * 1.8;
+        })();
+        return {
+            transform: [{ translateX: translateX.value }],
+            opacity,
+        };
+    });
+
+    const backdropStyle = useAnimatedStyle(() => {
+        const progress = 1 - Math.min(Math.max(translateX.value / SCREEN_WIDTH, 0), 1);
+        return {
+            opacity: progress * 0.12,
+        };
+    });
+
+    const pan = Gesture.Pan()
+        .activeOffsetX(20)
+        .failOffsetY([-15, 15])
+        .failOffsetX(-20)
+        .manualActivation(true)
+        .onTouchesDown((e) => {
+            const touch = e.allTouches[0];
+            startX.value = touch ? touch.x : 0;
+        })
+        .onTouchesMove((e, state) => {
+            if (startX.value > EDGE_ZONE_WIDTH) {
+                state.fail();
+                return;
+            }
+            state.activate();
+        })
+        .onUpdate((e) => {
+            const x = Math.max(0, e.translationX);
+            translateX.value = x;
+        })
+        .onEnd((e) => {
+            if (e.translationX > DISMISS_THRESHOLD || e.velocityX > VELOCITY_THRESHOLD) {
+                animatingOut.value = 1;
+                translateX.value = withTiming(SCREEN_WIDTH, { duration: ARTICLE_CLOSE_DURATION }, () => {
+                    animatingOut.value = 0;
+                    runOnJS(finishClose)();
+                });
+            } else {
+                translateX.value = withTiming(0, { duration: ARTICLE_CLOSE_DURATION });
+            }
+        });
+
+    const liked = likeOverride?.liked ?? article?.liked ?? false;
+    const likeCount = likeOverride?.count ?? article?.like_count ?? 0;
+    const favorited = favOverride?.favorited ?? article?.favorited ?? false;
+    const favoriteCount = favOverride?.count ?? article?.favorite_count ?? 0;
+    const followed = followOverride ?? article?.followed ?? false;
+
+    useEffect(() => {
+        if (!pageData) return;
+        if (prevArticleIdRef.current !== pageData.article.id) {
+            setLikeOverride(null);
+            setFavOverride(null);
+            setFollowOverride(null);
+            prevArticleIdRef.current = pageData.article.id;
+        }
+        setComments(pageData.comments || []);
+    }, [pageData]);
 
     const isOwnArticle = article?.author_id === userId;
 
-    const fetchPage = useCallback(async (withLoading = true) => {
-        if (withLoading) {
-            setLoading(true);
-        }
-        try {
-            const result = await fetchArticlePage(Number(articleId), userId || undefined);
-            setArticle(result.article);
-            setComments(result.comments || []);
-            setLiked(result.article.liked);
-            setLikeCount(result.article.like_count);
-            setFavorited(result.article.favorited);
-            setFavoriteCount(result.article.favorite_count || 0);
-            setFollowed(result.article.followed);
-        } catch (err) {
-            if (withLoading) {
-                Alert.alert('加载失败', '无法获取文章详情');
-            }
-        } finally {
-            if (withLoading) {
-                setLoading(false);
-            }
-        }
-    }, [articleId, userId]);
-
     useEffect(() => {
-        fetchPage();
-    }, [fetchPage]);
-
-    useEffect(() => {
-        const off = EventBus.on(Events.FOLLOW_CHANGED, ({ userId, followed }: { userId: number; followed: boolean }) => {
-            if (article?.author_id === userId) {
-                setFollowed(followed);
+        const off = EventBus.on(Events.FOLLOW_CHANGED, ({ userId: changedUserId, followed: newFollowed }: { userId: number; followed: boolean }) => {
+            if (article?.author_id === changedUserId) {
+                setFollowOverride(newFollowed);
             }
         });
         return off;
@@ -125,8 +207,7 @@ export default function ArticleDetailScreen() {
         const prevCount = likeCount;
         const newLiked = !liked;
         const newCount = liked ? likeCount - 1 : likeCount + 1;
-        setLiked(newLiked);
-        setLikeCount(newCount);
+        setLikeOverride({ liked: newLiked, count: newCount });
 
         try {
             await toggleArticleLikeRequest(Number(articleId));
@@ -136,8 +217,7 @@ export default function ArticleDetailScreen() {
                 likeCount: newCount,
             } as LikeChangedPayload);
         } catch {
-            setLiked(prevLiked);
-            setLikeCount(prevCount);
+            setLikeOverride({ liked: prevLiked, count: prevCount });
         }
     };
 
@@ -152,7 +232,7 @@ export default function ArticleDetailScreen() {
             });
             setCommentText('');
             inputRef.current?.blur();
-            await fetchPage(false);
+            await refetch();
         } catch {
             Alert.alert('评论失败', '网络错误');
         } finally {
@@ -162,7 +242,7 @@ export default function ArticleDetailScreen() {
 
     const openShareModal = () => {
         setShareModalVisible(true);
-        Animated.spring(shareSlideAnim, {
+        RNAnimated.spring(shareSlideAnim, {
             toValue: 1,
             useNativeDriver: true,
             tension: 65,
@@ -171,7 +251,7 @@ export default function ArticleDetailScreen() {
     };
 
     const closeShareModal = (cb?: () => void) => {
-        Animated.timing(shareSlideAnim, {
+        RNAnimated.timing(shareSlideAnim, {
             toValue: 0,
             duration: 120,
             useNativeDriver: true,
@@ -187,14 +267,14 @@ export default function ArticleDetailScreen() {
                 await Clipboard.setStringAsync(`${API_BASE_URL}/article/${articleId}`);
                 Alert.alert('提示', '链接已复制到剪贴板');
             } else if (action === '保存图片') {
-                if (article?.images?.length > 0) {
+                if (article?.images && article.images.length > 0) {
                     try {
                         const { status } = await MediaLibrary.requestPermissionsAsync();
                         if (status !== 'granted') {
                             Alert.alert('提示', '需要相册权限');
                             return;
                         }
-                        const imageUrl = article.images[0].image_url;
+                        const imageUrl = article!.images[0].image_url;
                         if (!FileSystem.cacheDirectory) {
                             Alert.alert('失败', '无法访问缓存目录');
                             return;
@@ -218,13 +298,13 @@ export default function ArticleDetailScreen() {
     const handleFollow = async () => {
         if (!isLoggedIn) { router.push('/login'); return; }
         const prev = followed;
-        setFollowed(!prev);
+        setFollowOverride(!prev);
         try {
-            const result = await toggleFollow(article.author_id, Number(userId));
-            setFollowed(result.followed);
-            EventBus.emit(Events.FOLLOW_CHANGED, { userId: article.author_id, followed: result.followed });
+            const result = await toggleFollow(article!.author_id, Number(userId));
+            setFollowOverride(result.followed);
+            EventBus.emit(Events.FOLLOW_CHANGED, { userId: article!.author_id, followed: result.followed });
         } catch {
-            setFollowed(prev);
+            setFollowOverride(prev);
         }
     };
 
@@ -234,14 +314,12 @@ export default function ArticleDetailScreen() {
         const prevCount = favoriteCount;
         const newFavorited = !favorited;
         const newCount = favorited ? favoriteCount - 1 : favoriteCount + 1;
-        setFavorited(newFavorited);
-        setFavoriteCount(newCount);
+        setFavOverride({ favorited: newFavorited, count: newCount });
         try {
             await toggleArticleFavorite(Number(articleId));
             EventBus.emit(Events.ARTICLE_FAVORITE_CHANGED, { articleId: Number(articleId), favorited: newFavorited });
         } catch {
-            setFavorited(prevFavorited);
-            setFavoriteCount(prevCount);
+            setFavOverride({ favorited: prevFavorited, count: prevCount });
         }
     };
 
@@ -287,30 +365,31 @@ export default function ArticleDetailScreen() {
         setCurrentImageIndex(index);
     };
 
-    if (loading) {
+    const renderScreen = () => {
+        if (loading && !article) {
+            return (
+                <SafeAreaView style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                </SafeAreaView>
+            );
+        }
+
+        if (!article) {
+            return (
+                <SafeAreaView style={styles.loadingContainer}>
+                    <Text style={{ color: Colors.textSecondary }}>文章不存在</Text>
+                </SafeAreaView>
+            );
+        }
+
+        const location = [article.location_city, article.location_district].filter(Boolean).join(' ');
+
         return (
-            <SafeAreaView style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-            </SafeAreaView>
-        );
-    }
-
-    if (!article) {
-        return (
-            <SafeAreaView style={styles.loadingContainer}>
-                <Text style={{ color: Colors.textSecondary }}>文章不存在</Text>
-            </SafeAreaView>
-        );
-    }
-
-    const location = [article.location_city, article.location_district].filter(Boolean).join(' ');
-
-    return (
-        <SafeAreaView style={styles.container}>
+            <SafeAreaView style={styles.container}>
             {/* 顶部固定栏 */}
             <View style={styles.topBar}>
                 <View style={styles.topBarLeft}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                    <TouchableOpacity onPress={closeWithAnimation} style={styles.backButton}>
                         <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -356,7 +435,7 @@ export default function ArticleDetailScreen() {
                         activeOpacity={1}
                         onPress={() => closeShareModal()}
                     />
-                    <Animated.View
+                    <RNAnimated.View
                         style={[
                             styles.shareSheet,
                             {
@@ -426,7 +505,7 @@ export default function ArticleDetailScreen() {
                         >
                             <Text style={styles.shareCancelText}>取消</Text>
                         </TouchableOpacity>
-                    </Animated.View>
+                    </RNAnimated.View>
                 </View>
             </Modal>
 
@@ -477,7 +556,7 @@ export default function ArticleDetailScreen() {
                         ) : null}
 
                         <View style={styles.metaRow}>
-                            <Text style={styles.metaText}>{formatTime(article.published_time)}</Text>
+                            <Text style={styles.metaText}>{formatTime(article.published_time || '')}</Text>
                             {location ? (
                                 <>
                                     <Text style={styles.metaDot}>·</Text>
@@ -623,10 +702,34 @@ export default function ArticleDetailScreen() {
                 </View>
             </KeyboardAvoidingView>
         </SafeAreaView>
+        );
+    };
+
+    return (
+        <View style={styles.routeRoot}>
+            <Animated.View pointerEvents="none" style={[styles.backdrop, backdropStyle]} />
+            <GestureDetector gesture={pan}>
+                <Animated.View style={[styles.screenFrame, screenSlideStyle]}>
+                    {renderScreen()}
+                </Animated.View>
+            </GestureDetector>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    routeRoot: {
+        flex: 1,
+        backgroundColor: 'transparent',
+    },
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: Colors.black,
+    },
+    screenFrame: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: Colors.backgroundWhite,
+    },
     container: {
         flex: 1,
         backgroundColor: Colors.backgroundWhite,

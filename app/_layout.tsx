@@ -8,6 +8,8 @@
 import { Stack } from 'expo-router';
 import { LogBox, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/shared/query/client';
 import { AuthProvider } from '../config/auth';
 import ChatOverlay from '../components/ChatOverlay';
 
@@ -15,6 +17,7 @@ LogBox.ignoreAllLogs(false);
 
 export default function RootLayout() {
   return (
+    <QueryClientProvider client={queryClient}>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
         <View style={styles.root}>
@@ -29,7 +32,12 @@ export default function RootLayout() {
             <Stack.Screen name="brand/[brandId]" options={{ headerShown: false }} />
             <Stack.Screen name="vehicle/[vehicleId]" options={{ headerShown: false }} />
             <Stack.Screen name="price-vehicles" options={{ headerShown: false }} />
-            <Stack.Screen name="article/[articleId]" options={{ headerShown: false }} />
+            <Stack.Screen name="article/[articleId]" options={{
+              headerShown: false,
+              presentation: 'transparentModal',
+              animation: 'none',
+              gestureEnabled: false,
+            }} />
             <Stack.Screen name="search" options={{ headerShown: false }} />
             <Stack.Screen name="profile-edit" options={{ headerShown: false }} />
             <Stack.Screen name="follow-list" options={{ headerShown: false }} />
@@ -45,6 +53,7 @@ export default function RootLayout() {
         </View>
       </AuthProvider>
     </GestureHandlerRootView>
+    </QueryClientProvider>
   );
 }
 

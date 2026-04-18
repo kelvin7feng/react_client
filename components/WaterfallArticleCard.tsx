@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react';
+import { useRef, useCallback, type ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { RemoteImage } from './RemoteImage';
 import { Colors, Spacing, FontSize, CommonStyles } from '../config/styles';
-import { formatCount } from '../config/utils';
+import { formatCount, setLastCardRect } from '../config/utils';
 
 /** 推荐 / 个人页瀑布流卡片所需字段（接口可多返字段，按需取用） */
 export type WaterfallArticleItem = {
@@ -34,8 +34,20 @@ export function WaterfallArticleCard({
     showImagePlaceholder = true,
     style,
 }: WaterfallArticleCardProps) {
+    const cardRef = useRef<View>(null);
+
+    const handlePress = useCallback(() => {
+        cardRef.current?.measureInWindow((x, y, width, height) => {
+            if (width > 0 && height > 0) {
+                setLastCardRect({ x, y, width, height });
+            }
+            onPress(item.id);
+        });
+    }, [onPress, item.id]);
+
     return (
-        <TouchableOpacity style={[styles.card, style]} activeOpacity={0.8} onPress={() => onPress(item.id)}>
+        <View ref={cardRef} collapsable={false}>
+        <TouchableOpacity style={[styles.card, style]} activeOpacity={0.8} onPress={handlePress}>
             {item.image ? (
                 <RemoteImage
                     uri={item.image}
@@ -85,6 +97,7 @@ export function WaterfallArticleCard({
                 </View>
             </View>
         </TouchableOpacity>
+        </View>
     );
 }
 

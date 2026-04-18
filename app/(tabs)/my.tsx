@@ -16,13 +16,15 @@ import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { fetchMyHome } from '@/features/bff/api';
+import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMyHome } from '@/features/bff/hooks';
 import { toggleArticleLike } from '@/features/community/api';
+import { queryKeys } from '@/shared/query/keys';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
-import { formatCount, navigateToUserProfile } from '../../config/utils';
+import { formatCount, navigateToUserProfile, navigateToArticle } from '../../config/utils';
 import { RemoteImage } from '../../components/RemoteImage';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
 import { SwipeTabView } from '../../components/SwipeTabView';
@@ -104,17 +106,28 @@ export default function MyScreen() {
     const router = useRouter();
     const { userId, isLoggedIn } = useAuth();
     const insets = useSafeAreaInsets();
-    const [userData, setUserData] = useState<any>(null);
-    const [userStats, setUserStats] = useState({ following_count: 0, followers_count: 0, likes_received: 0, favorites_received: 0 });
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [tabDataLoading, setTabDataLoading] = useState(true);
+    const queryClient = useQueryClient();
+
+    const { data, isLoading, error: queryError } = useMyHome(userId);
+
+    const userData = data?.user ?? null;
+    const userStats = data?.stats ?? { following_count: 0, followers_count: 0, likes_received: 0, favorites_received: 0 };
 
     const [myNotes, setMyNotes] = useState<any[]>([]);
     const [myFavorites, setMyFavorites] = useState<any[]>([]);
     const [myLiked, setMyLiked] = useState<any[]>([]);
     const [myViewed, setMyViewed] = useState<any[]>([]);
     const [myCommentsList, setMyCommentsList] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (!data) return;
+        setMyNotes(data.notes || []);
+        setMyCommentsList(data.comments || []);
+        setMyFavorites(data.favorites || []);
+        setMyLiked(data.liked || []);
+        setMyViewed(data.viewed || []);
+    }, [data]);
+
     const [tabBarH, setTabBarH] = useState(0);
     const [profileH, setProfileH] = useState(0);
     const [drawerVisible, setDrawerVisible] = useState(false);
@@ -149,36 +162,11 @@ export default function MyScreen() {
         }
     }, [profileH]);
 
-    const fetchHomeData = useCallback(async () => {
-        if (!userId) return;
-        setLoading(true);
-        setTabDataLoading(true);
-        try {
-            const result = await fetchMyHome(userId);
-            setUserData(result.user);
-            setUserStats(result.stats || { following_count: 0, followers_count: 0, likes_received: 0, favorites_received: 0 });
-            setMyNotes(result.notes || []);
-            setMyCommentsList(result.comments || []);
-            setMyFavorites(result.favorites || []);
-            setMyLiked(result.liked || []);
-            setMyViewed(result.viewed || []);
-            setError(null);
-        } catch (err: any) {
-            setUserData(null);
-            setError(err.message || '获取个人主页失败');
-        } finally {
-            setLoading(false);
-            setTabDataLoading(false);
-        }
-    }, [userId]);
-
-    useFocusEffect(useCallback(() => {
+    useEffect(() => {
         if (!isLoggedIn) {
             router.replace('/login');
-            return;
         }
-        fetchHomeData();
-    }, [isLoggedIn, fetchHomeData, router]));
+    }, [isLoggedIn, router]);
 
     const handleNoteLike = useCallback(async (article: any) => {
         const newLiked = !article.liked;
@@ -234,7 +222,7 @@ export default function MyScreen() {
         );
     }
 
-    if (loading) {
+    if (isLoading) {
         return (
             <SafeAreaView style={CommonStyles.safeArea}>
                 <View style={CommonStyles.loadingContainer}>
@@ -245,21 +233,18 @@ export default function MyScreen() {
         );
     }
 
-    if (error || !userData) {
+    if (queryError || !userData) {
         return (
             <SafeAreaView style={CommonStyles.safeArea}>
                 <View style={CommonStyles.errorContainer}>
                     <Ionicons name="alert-circle" size={50} color={Colors.error} />
-                    <Text style={CommonStyles.errorText}>{error || '未找到用户数据'}</Text>
+                    <Text style={CommonStyles.errorText}>{queryError?.message || '未找到用户数据'}</Text>
                 </View>
             </SafeAreaView>
         );
     }
 
     const renderWaterfall = (data: any[], onLike: (item: any) => void, label: string) => {
-        if (tabDataLoading) {
-            return <View style={styles.tabLoadingWrap}><ActivityIndicator size="small" color={Colors.textTertiary} /></View>;
-        }
         if (data.length === 0) return <EmptyTabContent label={label} />;
         return (
             <WaterfallTwoColumnGrid
@@ -268,7 +253,7 @@ export default function MyScreen() {
                 renderItem={(item: any) => (
                     <WaterfallArticleCard
                         item={item}
-                        onPress={(id) => router.push(`/article/${id}`)}
+                        onPress={() => navigateToArticle(router, queryClient, item, userId)}
                         onLike={onLike}
                         onAuthorPress={handleAuthorPress}
                     />
@@ -292,7 +277,7 @@ export default function MyScreen() {
                 />
                 <View style={styles.profileInfo}>
                     <View style={styles.nameRow}>
-                        <GenderIcon gender={userData.gender} />
+                        <GenderIcon gender={userData.gender ?? 0} />
                         <Text style={styles.name}>{userData.username || '未知用户'}</Text>
                     </View>
                     <Text style={styles.signature} numberOfLines={2}>
@@ -361,9 +346,7 @@ export default function MyScreen() {
                 </ScrollView>
 
                 <ScrollView ref={(r) => { tabScrollRefs.current['comments'] = r; }} {...tabScrollProps}>
-                    {tabDataLoading ? (
-                        <View style={styles.tabLoadingWrap}><ActivityIndicator size="small" color={Colors.textTertiary} /></View>
-                    ) : myCommentsList.length === 0 ? (
+                    {myCommentsList.length === 0 ? (
                         <EmptyTabContent label="评论" />
                     ) : (
                         <View style={styles.commentsList}>

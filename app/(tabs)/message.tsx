@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
     Platform, ActivityIndicator, RefreshControl, Alert, Dimensions,
@@ -10,9 +10,10 @@ import Animated, {
     useSharedValue, useAnimatedStyle, withTiming, runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { deleteConversation as deleteConversationRequest, fetchConversations as fetchConversationList, toggleConversationPin as toggleConversationPinRequest } from '@/features/im/api';
+import { deleteConversation as deleteConversationRequest, toggleConversationPin as toggleConversationPinRequest } from '@/features/im/api';
+import { useConversations } from '@/features/im/hooks';
+import { useUnreadCount } from '@/features/notification/hooks';
 import type { ConversationItem } from '@/features/im/types';
-import { fetchUnreadCount as fetchUnreadCountSummary } from '@/features/notification/api';
 import { Colors, Spacing, FontSize } from '../../config/styles';
 import { useAuth } from '../../config/auth';
 import { RemoteImage } from '../../components/RemoteImage';
@@ -194,65 +195,62 @@ export default function MessageScreen() {
     const insets = useSafeAreaInsets();
     const { userId, isLoggedIn } = useAuth();
     const [conversations, setConversations] = useState<ConversationItem[]>([]);
-    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [unreadByType, setUnreadByType] = useState<UnreadByType>({ likes: 0, follows: 0, comments: 0 });
     const [activeSwipeId, setActiveSwipeId] = useState<string | null>(null);
 
-    const fetchConversations = useCallback(async (showLoading = false) => {
-        if (!userId) return;
-        if (showLoading) setLoading(true);
-        try {
-            const data = await fetchConversationList(1);
-            setConversations(data || []);
-            preloadSessions((data || []).map((c) => ({
+    const {
+        data: convData,
+        isLoading: loading,
+        refetch: refetchConversations,
+    } = useConversations(!!userId);
+
+    const {
+        data: unreadData,
+        refetch: refetchUnread,
+    } = useUnreadCount(isLoggedIn);
+
+    const unreadByType: UnreadByType = {
+        likes: unreadData?.likes || 0,
+        follows: unreadData?.follows || 0,
+        comments: unreadData?.comments || 0,
+    };
+
+    useEffect(() => {
+        if (convData) {
+            setConversations(convData);
+            preloadSessions(convData.map((c) => ({
                 conversationId: String(c.id),
                 peerId: c.user1_id === userId ? c.user2_id : c.user1_id,
             })));
-        } catch {} finally { setLoading(false); setRefreshing(false); }
-    }, [userId]);
-
-    const fetchUnreadByType = useCallback(async () => {
-        if (!isLoggedIn) return;
-        try {
-            const data = await fetchUnreadCountSummary();
-            setUnreadByType({
-                likes: data.likes || 0,
-                follows: data.follows || 0,
-                comments: data.comments || 0,
-            });
-        } catch {}
-    }, [isLoggedIn]);
-
-    const hasLoadedRef = useRef(false);
+        }
+    }, [convData, userId]);
 
     useFocusEffect(useCallback(() => {
         if (!isLoggedIn) {
             router.replace('/login');
             return;
         }
-        fetchConversations(!hasLoadedRef.current);
-        fetchUnreadByType();
-        hasLoadedRef.current = true;
-    }, [isLoggedIn, fetchConversations, fetchUnreadByType]));
+        refetchConversations();
+        refetchUnread();
+    }, [isLoggedIn, refetchConversations, refetchUnread, router]));
 
     useWSEvent('new_message', useCallback(() => {
-        fetchConversations();
-    }, [fetchConversations]));
+        refetchConversations();
+    }, [refetchConversations]));
 
     const handleRefresh = () => {
         setRefreshing(true);
         setActiveSwipeId(null);
-        fetchConversations();
-        fetchUnreadByType();
+        refetchConversations().finally(() => setRefreshing(false));
+        refetchUnread();
     };
 
     const handleTogglePin = useCallback(async (conv: any) => {
         try {
             await toggleConversationPinRequest(conv.id);
-            fetchConversations();
+            refetchConversations();
         } catch {}
-    }, [fetchConversations]);
+    }, [refetchConversations]);
 
     const handleDelete = useCallback((conv: any) => {
         const isUser1 = conv.user1_id === userId;

@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { fetchFollowers, fetchFollowing, fetchMutualFollows, toggleFollow } from '@/features/social/api';
+import { toggleFollow } from '@/features/social/api';
+import { useFollowList } from '@/features/social/hooks';
 import type { SocialUser } from '@/features/social/types';
 import { EventBus, Events } from '@/config/events';
 import { Colors, Spacing, FontSize } from '../config/styles';
@@ -110,31 +111,19 @@ export default function FollowListScreen() {
     const params = useLocalSearchParams<{ tab?: string }>();
     const initialIndex = params.tab === 'followers' ? 2 : params.tab === 'mutual' ? 0 : 1;
 
+    const { data: listData, isLoading: initialLoading } = useFollowList(userId ? Number(userId) : null);
+
     const [mutualList, setMutualList] = useState<SocialUser[]>([]);
     const [followingList, setFollowingList] = useState<SocialUser[]>([]);
     const [followersList, setFollowersList] = useState<SocialUser[]>([]);
-    const [initialLoading, setInitialLoading] = useState(true);
     const [followLoading, setFollowLoading] = useState<Record<number, boolean>>({});
 
     useEffect(() => {
-        if (!userId) return;
-        let cancelled = false;
-        const fetchAll = async () => {
-            setInitialLoading(true);
-            const [mutualRes, followingRes, followersRes] = await Promise.allSettled([
-                fetchMutualFollows(Number(userId), 1),
-                fetchFollowing(Number(userId), 1),
-                fetchFollowers(Number(userId), 1, Number(userId)),
-            ]);
-            if (cancelled) return;
-            if (mutualRes.status === 'fulfilled') setMutualList(mutualRes.value || []);
-            if (followingRes.status === 'fulfilled') setFollowingList(followingRes.value || []);
-            if (followersRes.status === 'fulfilled') setFollowersList(followersRes.value || []);
-            setInitialLoading(false);
-        };
-        fetchAll();
-        return () => { cancelled = true; };
-    }, [userId]);
+        if (!listData) return;
+        setMutualList(listData.mutual);
+        setFollowingList(listData.following);
+        setFollowersList(listData.followers);
+    }, [listData]);
 
     const handleToggleFollow = useCallback(async (targetUser: SocialUser) => {
         if (!userId || followLoading[targetUser.id]) return;
