@@ -35,6 +35,14 @@
         }
       ],
       [
+        "expo-media-library",
+        {
+          "photosPermission": "允许小驴访问您的相册以选择要发布的图片",
+          "savePhotosPermission": "允许小驴保存图片到相册",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",

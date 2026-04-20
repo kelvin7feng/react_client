@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     View,
     Text,
@@ -6,44 +6,68 @@ import {
     TouchableOpacity,
     ScrollView,
     SafeAreaView,
-    Image,
     StyleSheet,
     Alert,
     ActivityIndicator,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { publishArticle } from '@/features/community/api';
-import { useQueryClient } from '@tanstack/react-query';
 import { CommonStyles, Colors, Spacing, FontSize } from '../../config/styles';
 import { useAuth } from '../../config/auth';
+import {
+    DELETE_DRAG_IDLE_STATE,
+    useDeleteDragOverlay,
+} from '../../components/DeleteDragOverlay';
+import ImageEditor from '../../components/ImageEditor';
+import DraggableThumbList from '../../components/ImageEditor/DraggableThumbList';
+import {
+  ActionSheet,
+  AlbumPicker,
+} from '../../components/AlbumPicker';
+import { LocationPicker } from '../../components/LocationPicker';
+import { usePublishTask } from '../../components/PublishTaskManager';
 
 const DRAFT_KEY = 'publish_draft';
 
+type LocationDetail = {
+    province: string;
+    city: string;
+    district: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+};
+
 export default function PublishScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams<{ newImages?: string }>();
     const { userId } = useAuth();
-    const queryClient = useQueryClient();
+    const { submit: submitPublish, publishing: globalPublishing } = usePublishTask();
+    const handledNewImagesRef = useRef<string | null>(null);
+    const { deleteTargetRef, setDragState } = useDeleteDragOverlay();
     const [selectedImages, setSelectedImages] = useState<string[]>([]);
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [selectedTopic, setSelectedTopic] = useState('');
     const [location, setLocation] = useState('');
-    const [locationDetail, setLocationDetail] = useState<{
-        province: string;
-        city: string;
-        district: string;
-        address: string;
-        latitude: number;
-        longitude: number;
-    } | null>(null);
-    const [isPublishing, setIsPublishing] = useState(false);
-    const [isLocating, setIsLocating] = useState(false);
+    const [locationDetail, setLocationDetail] = useState<LocationDetail | null>(null);
     const [draftLoaded, setDraftLoaded] = useState(false);
+    const [editorVisible, setEditorVisible] = useState(false);
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [imageSheetVisible, setImageSheetVisible] = useState(false);
+    const [albumPickerVisible, setAlbumPickerVisible] = useState(false);
+    // 编辑器当前这次打开是否来自 AlbumPicker（决定滑入完成后是否关闭相册）
+    const [editorInAlbum, setEditorInAlbum] = useState(false);
+    // 左上角返回按钮触发的"保留/不保留"确认 sheet
+    const [backSheetVisible, setBackSheetVisible] = useState(false);
+    // 位置选择弹窗（全屏，带搜索与附近列表）
+    const [locationPickerVisible, setLocationPickerVisible] = useState(false);
+
+    useFocusEffect(useCallback(() => {
+        return () => setDragState(DELETE_DRAG_IDLE_STATE);
+    }, [setDragState]));
 
     useEffect(() => {
         (async () => {
@@ -61,6 +85,24 @@ export default function PublishScreen() {
             } catch {} finally { setDraftLoaded(true); }
         })();
     }, []);
+
+    // 接收 Tab 入口选图并编辑完成后带回的图片，追加到已有图片后。
+    // 注意：不要在这里调用 router.setParams({ newImages: undefined })。
+    // expo-router 的 setParams 会触发 Stack 再次派发导航动作，和本页 <Stack.Screen options={{...}}>
+    // 的内联 options（每次 render 都是新对象）叠加后，会让 navigation.setOptions 反复触发，
+    // 最终引发 "Maximum update depth exceeded"。幂等由 handledNewImagesRef 保障即可。
+    useEffect(() => {
+        if (!draftLoaded) return;
+        const raw = params.newImages;
+        if (!raw || typeof raw !== 'string') return;
+        if (handledNewImagesRef.current === raw) return;
+        handledNewImagesRef.current = raw;
+        try {
+            const uris = JSON.parse(raw) as string[];
+            if (!Array.isArray(uris) || uris.length === 0) return;
+            setSelectedImages((prev) => [...prev, ...uris].slice(0, 9));
+        } catch {}
+    }, [draftLoaded, params.newImages]);
 
     const saveDraftToStorage = useCallback(async () => {
         try {
@@ -81,66 +123,106 @@ export default function PublishScreen() {
         '摩旅日记', '机车保养', '新车评测', '二手交易', '骑行技巧'
     ];
 
-    const pickImage = async () => {
-        if (selectedImages.length >= 9) {
+    const remainingSlots = 9 - selectedImages.length;
+
+    const pickImage = () => {
+        if (remainingSlots <= 0) {
             Alert.alert('提示', '最多只能选择9张图片');
             return;
         }
+        setImageSheetVisible(true);
+    };
 
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.8,
+    const handleChooseFromAlbum = () => {
+        setImageSheetVisible(false);
+        setTimeout(() => setAlbumPickerVisible(true), 220);
+    };
+
+    const handleAlbumConfirm = (uris: string[]) => {
+        if (uris.length === 0) return;
+        const startIndex = selectedImages.length;
+        const merged = [...selectedImages, ...uris].slice(0, 9);
+        setSelectedImages(merged);
+        setEditingIndex(startIndex);
+        setEditorInAlbum(true);
+        setEditorVisible(true);
+    };
+
+    const handleEditorOpened = () => {
+        if (editorInAlbum) {
+            // 编辑器滑入完成，再关闭底下的相册页面
+            setAlbumPickerVisible(false);
+        }
+    };
+
+    const handleEditorClosed = () => {
+        setEditingIndex(null);
+        setEditorInAlbum(false);
+    };
+
+    const handleDeleteImage = useCallback((index: number) => {
+        setDragState({ dragging: false, overDelete: false });
+        setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+    }, [setDragState]);
+
+    const handleReorderImages = useCallback((from: number, to: number) => {
+        if (from === to) return;
+        setSelectedImages((prev) => {
+            const next = [...prev];
+            const [item] = next.splice(from, 1);
+            next.splice(to, 0, item);
+            return next;
         });
+    }, []);
 
-        if (!result.canceled) {
-            setSelectedImages([...selectedImages, result.assets[0].uri]);
-        }
+    // 稳定的拖拽状态回调，避免内联函数在每次 render 都变成新引用，
+    // 进而触发子组件 useEffect 反复调用 setDragState 引起无限循环。
+    const handleDragStateChange = useCallback(
+        (state: { dragging: boolean; overDelete: boolean }) => setDragState(state),
+        [setDragState]
+    );
+
+    const openEditor = (index: number) => {
+        setEditorInAlbum(false);
+        setEditingIndex(index);
+        setEditorVisible(true);
     };
 
-    const removeImage = (index: number) => {
-        const newImages = [...selectedImages];
-        newImages.splice(index, 1);
+    const closeEditor = () => {
+        setEditorVisible(false);
+    };
+
+    const handleEditorDone = (newImages: string[]) => {
         setSelectedImages(newImages);
+        setEditorVisible(false);
     };
 
-    const handleGetLocation = async () => {
-        setIsLocating(true);
-        try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-                Alert.alert('提示', '需要位置权限才能添加定位');
-                return;
-            }
+    // 点击"位置"：打开全屏位置选择窗口（定位/搜索/附近列表均在内部处理）
+    const handleOpenLocationPicker = () => {
+        setLocationPickerVisible(true);
+    };
 
-            const loc = await Location.getCurrentPositionAsync({});
-            const [geocode] = await Location.reverseGeocodeAsync({
-                latitude: loc.coords.latitude,
-                longitude: loc.coords.longitude,
-            });
-
-            if (geocode) {
-                const detail = {
-                    province: geocode.region || '',
-                    city: geocode.city || '',
-                    district: geocode.district || '',
-                    address: geocode.name || geocode.street || '',
-                    latitude: loc.coords.latitude,
-                    longitude: loc.coords.longitude,
-                };
-                setLocationDetail(detail);
-                const displayLocation = [detail.city, detail.district].filter(Boolean).join(' ');
-                setLocation(displayLocation || '未知位置');
-            }
-        } catch (error) {
-            Alert.alert('定位失败', '无法获取当前位置，请稍后重试');
-        } finally {
-            setIsLocating(false);
+    const handleLocationPicked = (
+        label: string | null,
+        detail: LocationDetail | null,
+    ) => {
+        setLocationPickerVisible(false);
+        if (!label || !detail) {
+            setLocation('');
+            setLocationDetail(null);
+            return;
         }
+        setLocationDetail(detail);
+        setLocation(label);
     };
 
+    // 发布：构造 FormData 后交给全局 PublishTaskProvider 异步上传，
+    // 立即清理发布页本地状态并关闭页面。进度条/完成飘字由 Provider 层负责。
     const handlePublish = async () => {
+        if (globalPublishing) {
+            Alert.alert('提示', '上一条内容正在发布中，请稍候');
+            return;
+        }
         if (!title.trim()) {
             Alert.alert('提示', '请输入标题');
             return;
@@ -154,57 +236,50 @@ export default function PublishScreen() {
             return;
         }
 
-        setIsPublishing(true);
+        const formData = new FormData();
+        formData.append('title', title.trim());
+        formData.append('content', content.trim());
 
-        try {
-            const formData = new FormData();
-            formData.append('title', title.trim());
-            formData.append('content', content.trim());
-
-            if (selectedTopic) {
-                formData.append('topic', selectedTopic);
-            }
-
-            if (locationDetail) {
-                formData.append('location_province', locationDetail.province);
-                formData.append('location_city', locationDetail.city);
-                formData.append('location_district', locationDetail.district);
-                formData.append('location_address', locationDetail.address);
-                formData.append('location_latitude', String(locationDetail.latitude));
-                formData.append('location_longitude', String(locationDetail.longitude));
-            }
-
-            for (let i = 0; i < selectedImages.length; i++) {
-                const uri = selectedImages[i];
-                const filename = uri.split('/').pop() || `image_${i}.jpg`;
-                const match = /\.(\w+)$/.exec(filename);
-                const type = match ? `image/${match[1]}` : 'image/jpeg';
-
-                formData.append('images', {
-                    uri,
-                    name: filename,
-                    type,
-                } as any);
-            }
-
-            await publishArticle(formData);
-            queryClient.invalidateQueries({ queryKey: ['myHome'] });
-            queryClient.invalidateQueries({ queryKey: ['feed'] });
-            setSelectedImages([]);
-            setTitle('');
-            setContent('');
-            setSelectedTopic('');
-            setLocation('');
-            setLocationDetail(null);
-            await clearDraft();
-            Alert.alert('发布成功', '您的内容已成功发布', [
-                { text: '确定', onPress: () => router.back() }
-            ]);
-        } catch (error) {
-            Alert.alert('发布失败', error instanceof Error ? error.message : '网络错误，请检查网络连接后重试');
-        } finally {
-            setIsPublishing(false);
+        if (selectedTopic) {
+            formData.append('topic', selectedTopic);
         }
+
+        if (locationDetail) {
+            formData.append('location_province', locationDetail.province);
+            formData.append('location_city', locationDetail.city);
+            formData.append('location_district', locationDetail.district);
+            formData.append('location_address', locationDetail.address);
+            formData.append('location_latitude', String(locationDetail.latitude));
+            formData.append('location_longitude', String(locationDetail.longitude));
+        }
+
+        for (let i = 0; i < selectedImages.length; i++) {
+            const uri = selectedImages[i];
+            const filename = uri.split('/').pop() || `image_${i}.jpg`;
+            const match = /\.(\w+)$/.exec(filename);
+            const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+            formData.append('images', {
+                uri,
+                name: filename,
+                type,
+            } as any);
+        }
+
+        // 交给后台任务。失败时 Provider 会自己弹飘字，这里不需要再处理。
+        submitPublish({ formData });
+
+        // 立即清理本地编辑态与草稿缓存，避免用户再回到发布页看到旧内容。
+        await clearDraft();
+        setSelectedImages([]);
+        setTitle('');
+        setContent('');
+        setSelectedTopic('');
+        setLocation('');
+        setLocationDetail(null);
+        handledNewImagesRef.current = null;
+
+        router.back();
     };
 
     const handleSaveDraft = async () => {
@@ -213,46 +288,111 @@ export default function PublishScreen() {
         router.back();
     };
 
+    // 判断当前发布页是否存在任何可保留的编辑内容（标题/正文/话题/位置/图片任一非空）。
+    const hasEditContent = useMemo(
+        () =>
+            !!title ||
+            !!content ||
+            !!selectedTopic ||
+            !!location ||
+            selectedImages.length > 0,
+        [title, content, selectedTopic, location, selectedImages.length]
+    );
+
+    // 清空发布页所有编辑态，使下次打开回到"空白新发布"。
+    const resetEditState = useCallback(() => {
+        setTitle('');
+        setContent('');
+        setSelectedTopic('');
+        setLocation('');
+        setLocationDetail(null);
+        setSelectedImages([]);
+    }, []);
+
+    const handleBackPress = useCallback(() => {
+        if (!hasEditContent) {
+            // 没有任何编辑内容时直接返回，不打扰用户。
+            router.back();
+            return;
+        }
+        setBackSheetVisible(true);
+    }, [hasEditContent, router]);
+
+    // "保留"：把当前编辑保存为草稿，再关闭发布页。下次打开会自动恢复。
+    const handleBackKeepDraft = useCallback(async () => {
+        setBackSheetVisible(false);
+        await saveDraftToStorage();
+        router.back();
+    }, [saveDraftToStorage, router]);
+
+    // "不保留"：清空草稿缓存与当前编辑态，再关闭发布页。
+    const handleBackDiscard = useCallback(async () => {
+        setBackSheetVisible(false);
+        await clearDraft();
+        resetEditState();
+        // 同时重置"已处理过的 newImages"标记，避免下次 params 相同时被跳过。
+        handledNewImagesRef.current = null;
+        router.back();
+    }, [resetEditState, router]);
+
+    // 注：原本使用 <Stack.Screen options={{ headerLeft }} /> 注册左上角返回按钮，
+    // 但 app/_layout.tsx 对 (tabs) 设置了 headerShown: false，且 (tabs)/_layout.tsx 内部
+    // 也关闭了 header，所以 Stack 的 headerLeft 根本不会被渲染。这里改为在页面顶部
+    // 自绘一个 header 条，放置"返回"按钮。
+
     return (
         <View style={CommonStyles.containerWhite}>
             <SafeAreaView style={CommonStyles.safeAreaWhite}>
-                <Stack.Screen
-                    options={{
-                        title: '',
-                        headerLeft: () => (
-                            <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 15 }}>
-                                <Ionicons name="close" size={24} color="#000" />
-                            </TouchableOpacity>
-                        ),
-                    }}
-                />
+                {/* 自定义顶部栏：左箭头返回 + 右侧占位对称 */}
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        onPress={handleBackPress}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={styles.headerBackBtn}
+                    >
+                        <Ionicons name="chevron-back" size={26} color="#000" />
+                    </TouchableOpacity>
+                    <View style={styles.headerRightPlaceholder} />
+                </View>
 
                 <ScrollView style={CommonStyles.scrollView}>
                     {/* 图片选择区域 */}
                     <View style={styles.imageSection}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                            <View style={styles.imageList}>
-                                {selectedImages.map((uri, index) => (
-                                    <View key={index} style={styles.imageWrapper}>
-                                        <Image source={{ uri }} style={styles.image} />
+                        {selectedImages.length > 0 ? (
+                            <DraggableThumbList
+                                images={selectedImages}
+                                currentIndex={editingIndex ?? -1}
+                                onSelect={openEditor}
+                                onReorder={handleReorderImages}
+                                onDelete={handleDeleteImage}
+                                deleteTargetRef={deleteTargetRef}
+                                onDragStateChange={handleDragStateChange}
+                                variant="light"
+                                thumbSize={80}
+                                thumbGap={10}
+                                hintText={null}
+                                trailingContent={
+                                    selectedImages.length < 9 ? (
                                         <TouchableOpacity
-                                            style={styles.removeButton}
-                                            onPress={() => removeImage(index)}
+                                            style={[styles.addButton, styles.addButtonInline]}
+                                            onPress={pickImage}
                                         >
-                                            <Ionicons name="close-circle" size={20} color="#fff" />
+                                            <Ionicons name="add" size={30} color="#999" />
+                                            <Text style={styles.addButtonText}>
+                                                {selectedImages.length}/9
+                                            </Text>
                                         </TouchableOpacity>
-                                    </View>
-                                ))}
-                                {selectedImages.length < 9 && (
-                                    <TouchableOpacity style={styles.addButton} onPress={pickImage}>
-                                        <Ionicons name="add" size={30} color="#999" />
-                                        <Text style={styles.addButtonText}>
-                                            {selectedImages.length}/9
-                                        </Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        </ScrollView>
+                                    ) : null
+                                }
+                            />
+                        ) : (
+                            <TouchableOpacity style={styles.addButton} onPress={pickImage}>
+                                <Ionicons name="add" size={30} color="#999" />
+                                <Text style={styles.addButtonText}>
+                                    {selectedImages.length}/9
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
 
                     {/* 标题输入 */}
@@ -310,16 +450,24 @@ export default function PublishScreen() {
                     <View style={CommonStyles.divider} />
 
                     {/* 位置选择 */}
-                    <TouchableOpacity style={styles.locationSection} onPress={handleGetLocation}>
-                        {isLocating ? (
-                            <ActivityIndicator size="small" color={Colors.primary} />
-                        ) : (
-                            <Ionicons name="location-outline" size={20} color={location ? Colors.primary : Colors.textSecondary} />
-                        )}
-                        <Text style={[styles.locationText, location && styles.locationTextActive]}>
-                            {isLocating ? '定位中...' : (location || '添加位置')}
+                    <TouchableOpacity
+                        style={styles.locationSection}
+                        onPress={handleOpenLocationPicker}
+                    >
+                        <Ionicons
+                            name="location-outline"
+                            size={20}
+                            color={location ? Colors.primary : Colors.textSecondary}
+                        />
+                        <Text
+                            style={[
+                                styles.locationText,
+                                location && styles.locationTextActive,
+                            ]}
+                        >
+                            {location || '位置'}
                         </Text>
-                        {location && !isLocating && (
+                        {location ? (
                             <TouchableOpacity
                                 onPress={(e) => {
                                     e.stopPropagation();
@@ -328,9 +476,13 @@ export default function PublishScreen() {
                                 }}
                                 style={styles.locationClear}
                             >
-                                <Ionicons name="close-circle" size={16} color={Colors.textSecondary} />
+                                <Ionicons
+                                    name="close-circle"
+                                    size={16}
+                                    color={Colors.textSecondary}
+                                />
                             </TouchableOpacity>
-                        )}
+                        ) : null}
                     </TouchableOpacity>
 
                     {/* 分割线 */}
@@ -342,17 +494,20 @@ export default function PublishScreen() {
                     <TouchableOpacity
                         style={styles.draftButton}
                         onPress={handleSaveDraft}
-                        disabled={isPublishing}
+                        disabled={globalPublishing}
                     >
                         <FontAwesome name="bookmark-o" size={16} color="#666" />
                         <Text style={styles.draftText}>存草稿</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.publishButton, isPublishing && styles.publishButtonDisabled]}
+                        style={[
+                            styles.publishButton,
+                            globalPublishing && styles.publishButtonDisabled,
+                        ]}
                         onPress={handlePublish}
-                        disabled={isPublishing}
+                        disabled={globalPublishing}
                     >
-                        {isPublishing ? (
+                        {globalPublishing ? (
                             <ActivityIndicator size="small" color={Colors.white} />
                         ) : (
                             <Text style={styles.publishText}>发布</Text>
@@ -360,11 +515,81 @@ export default function PublishScreen() {
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
+            <ActionSheet
+                visible={imageSheetVisible}
+                onClose={() => setImageSheetVisible(false)}
+                options={[
+                    {
+                        label: '从手机相册选择',
+                        onPress: handleChooseFromAlbum,
+                    },
+                ]}
+            />
+
+            <ActionSheet
+                visible={backSheetVisible}
+                onClose={() => setBackSheetVisible(false)}
+                title="是否保留本次编辑？"
+                cancelText="继续编辑"
+                options={[
+                    {
+                        label: '保留',
+                        onPress: handleBackKeepDraft,
+                    },
+                    {
+                        label: '不保留',
+                        destructive: true,
+                        onPress: handleBackDiscard,
+                    },
+                ]}
+            />
+
+            <LocationPicker
+                visible={locationPickerVisible}
+                onClose={() => setLocationPickerVisible(false)}
+                onConfirm={handleLocationPicked}
+            />
+
+            <AlbumPicker
+                visible={albumPickerVisible}
+                maxCount={remainingSlots > 0 ? remainingSlots : 9}
+                onCancel={() => setAlbumPickerVisible(false)}
+                onConfirm={handleAlbumConfirm}
+            />
+
+            {editingIndex !== null && selectedImages.length > 0 ? (
+                <ImageEditor
+                    visible={editorVisible}
+                    images={selectedImages}
+                    initialIndex={editingIndex}
+                    onCancel={closeEditor}
+                    onDone={handleEditorDone}
+                    onOpened={handleEditorOpened}
+                    onClosed={handleEditorClosed}
+                />
+            ) : null}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: 44,
+        paddingHorizontal: Spacing.sm,
+    },
+    headerBackBtn: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerRightPlaceholder: {
+        width: 40,
+        height: 40,
+    },
     section: {
         padding: Spacing.lg,
     },
@@ -376,26 +601,6 @@ const styles = StyleSheet.create({
         ...CommonStyles.textSectionTitle,
         marginBottom: Spacing.md,
     },
-    imageList: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    imageWrapper: {
-        position: 'relative',
-        marginRight: 10,
-    },
-    image: {
-        width: 80,
-        height: 80,
-        borderRadius: Spacing.sm,
-    },
-    removeButton: {
-        position: 'absolute',
-        top: -5,
-        right: -5,
-        backgroundColor: Colors.overlay,
-        borderRadius: 10,
-    },
     addButton: {
         width: 80,
         height: 80,
@@ -406,6 +611,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: Colors.backgroundLightGray,
+    },
+    addButtonInline: {
+        marginLeft: 2,
     },
     addButtonText: {
         fontSize: 10,
@@ -472,7 +680,11 @@ const styles = StyleSheet.create({
     footer: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: Spacing.lg,
+        paddingHorizontal: Spacing.lg,
+        // 上下 padding 压缩，使发布按钮区域整体高度累计减少 20（同步更新 DeleteDragOverlay 中的 PUBLISH_FOOTER_HEIGHT）
+        // 同时通过增加顶部 padding、减少底部 padding，让"存草稿/发布"按钮整体向下偏移 5（总高度保持不变）
+        paddingTop: Spacing.lg - 10 + 5,
+        paddingBottom: Spacing.lg - 10 - 5,
         ...CommonStyles.borderTop,
         backgroundColor: Colors.backgroundWhite,
     },
