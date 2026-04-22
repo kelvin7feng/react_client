@@ -6,11 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  RefreshControl,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Dimensions,
 } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
@@ -25,9 +25,10 @@ import { navigateToUserProfile, navigateToArticle } from '../../config/utils';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
 import { SwipeTabView } from '../../components/SwipeTabView';
 import { SettingsDrawer } from '../../components/SettingsDrawer';
-import { BouncingDotsIndicator } from '../../components/BouncingDotsIndicator';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const REFRESH_TRIGGER_DISTANCE = 72;
 
 type TabKey = 'following' | 'recommend' | 'nearby';
 
@@ -48,6 +49,29 @@ const TabContent = ({
   emptyMessage: string;
   renderItem: (item: any) => React.ReactNode;
 }) => {
+  const scrollY = useSharedValue(0);
+
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollY.value = e.nativeEvent.contentOffset.y;
+      onScroll(e);
+    },
+    [onScroll],
+  );
+
+  const handleScrollEndDrag = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (state.refreshing) {
+        return;
+      }
+
+      if (e.nativeEvent.contentOffset.y <= -REFRESH_TRIGGER_DISTANCE) {
+        onRefresh();
+      }
+    },
+    [state.refreshing, onRefresh],
+  );
+
   if (state.loading && !state.refreshing) {
     return <LoadingView />;
   }
@@ -62,21 +86,13 @@ const TabContent = ({
 
   return (
     <View style={{ flex: 1 }}>
-      <BouncingDotsIndicator refreshing={state.refreshing} />
+      <BouncingDotsIndicator scrollY={scrollY} refreshing={state.refreshing} />
       <ScrollView
         style={CommonStyles.scrollView}
-        onScroll={onScroll}
+        onScroll={handleScroll}
+        onScrollEndDrag={handleScrollEndDrag}
         scrollEventThrottle={16}
         nestedScrollEnabled
-        refreshControl={
-          <RefreshControl
-            refreshing={state.refreshing}
-            onRefresh={onRefresh}
-            tintColor="transparent"
-            colors={['transparent']}
-            progressBackgroundColor="transparent"
-          />
-        }
       >
         {renderItem(state.items)}
 
