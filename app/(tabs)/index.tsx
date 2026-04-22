@@ -25,6 +25,7 @@ import { navigateToUserProfile, navigateToArticle } from '../../config/utils';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
 import { SwipeTabView } from '../../components/SwipeTabView';
 import { SettingsDrawer } from '../../components/SettingsDrawer';
+import { BouncingDotsIndicator } from '../../components/BouncingDotsIndicator';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -60,35 +61,39 @@ const TabContent = ({
   }
 
   return (
-    <ScrollView
-      style={CommonStyles.scrollView}
-      onScroll={onScroll}
-      scrollEventThrottle={16}
-      nestedScrollEnabled
-      refreshControl={
-        <RefreshControl
-          refreshing={state.refreshing}
-          onRefresh={onRefresh}
-          colors={[Colors.primary]}
-          tintColor={Colors.primary}
-        />
-      }
-    >
-      {renderItem(state.items)}
+    <View style={{ flex: 1 }}>
+      <BouncingDotsIndicator refreshing={state.refreshing} />
+      <ScrollView
+        style={CommonStyles.scrollView}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        nestedScrollEnabled
+        refreshControl={
+          <RefreshControl
+            refreshing={state.refreshing}
+            onRefresh={onRefresh}
+            tintColor="transparent"
+            colors={['transparent']}
+            progressBackgroundColor="transparent"
+          />
+        }
+      >
+        {renderItem(state.items)}
 
-      {state.loadingMore && (
-        <View style={CommonStyles.loadingMoreContainer}>
-          <ActivityIndicator size="small" color={Colors.primaryBlue} />
-          <Text style={CommonStyles.loadingMoreText}>加载更多...</Text>
-        </View>
-      )}
+        {state.loadingMore && (
+          <View style={CommonStyles.loadingMoreContainer}>
+            <ActivityIndicator size="small" color={Colors.primaryBlue} />
+            <Text style={CommonStyles.loadingMoreText}>加载更多...</Text>
+          </View>
+        )}
 
-      {!state.hasMore && state.items.length > 0 && (
-        <View style={CommonStyles.noMoreContainer}>
-          <Text style={CommonStyles.noMoreText}>没有更多数据了</Text>
-        </View>
-      )}
-    </ScrollView>
+        {!state.hasMore && state.items.length > 0 && (
+          <View style={CommonStyles.noMoreContainer}>
+            <Text style={CommonStyles.noMoreText}>没有更多数据了</Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -308,6 +313,28 @@ export default function Index() {
     }
   }, [city]);
 
+  // 文章发布成功事件：把所有 tab 标记为未初始化并清空本地列表/缓存游标；
+  // 当前激活的 tab 立即从第 1 页重新拉取，其他 tab 会在切换时按"未初始化"分支自动拉取。
+  useEffect(() => {
+    const off = EventBus.on(Events.ARTICLE_PUBLISHED, () => {
+      TAB_ORDER.forEach((k) => {
+        lastLoadedPageRef.current[k] = 0;
+        isLoadingRef.current[k] = false;
+        // 让下次该 tab 展示时命中 "!initialized" 重新拉取。
+        queryClient.removeQueries({ queryKey: getCacheKey(k, 1) });
+      });
+      setTabStates({
+        following: { ...initialTabState },
+        recommend: { ...initialTabState },
+        nearby: { ...initialTabState },
+      });
+      // 立即对当前激活 tab 触发一次刷新（nearby 需要 city，没定位到时跳过）
+      if (activeTab === 'nearby' && !city) return;
+      fetchArticles(activeTab, 1, false);
+    });
+    return off;
+  }, [activeTab, city, fetchArticles, queryClient, getCacheKey]);
+
   useEffect(() => {
     const off = EventBus.on(Events.ARTICLE_LIKE_CHANGED, ({ articleId, liked, likeCount }: LikeChangedPayload) => {
       setTabStates(prev => {
@@ -318,6 +345,22 @@ export default function Index() {
             items: prev[key].items.map(item =>
               item.id === articleId ? { ...item, likes: likeCount, liked } : item
             ),
+          };
+        }
+        return next;
+      });
+    });
+    return off;
+  }, []);
+
+  useEffect(() => {
+    const off = EventBus.on(Events.ARTICLE_DELETED, ({ articleId }: { articleId: number }) => {
+      setTabStates(prev => {
+        const next = { ...prev };
+        for (const key of TAB_ORDER) {
+          next[key] = {
+            ...prev[key],
+            items: prev[key].items.filter(item => item.id !== articleId),
           };
         }
         return next;

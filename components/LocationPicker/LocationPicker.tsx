@@ -4,20 +4,20 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   FlatList,
   StyleSheet,
   Animated,
-  SafeAreaView,
   ActivityIndicator,
   Dimensions,
   BackHandler,
-  Platform,
-  StatusBar,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Location from 'expo-location';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+// 面板占屏幕 3/4 高度，顶部留出 1/4 给遮罩（点击可关闭）
+const SHEET_HEIGHT = Math.round(SCREEN_HEIGHT * 0.75);
 
 // 附近位置分页：每一页代表一圈采样半径（米）。页码越大覆盖范围越大。
 // 每页 3 个半径 × 6 个方向 = 18 个采样点。首页附加一次中心点反查。
@@ -144,7 +144,8 @@ export default function LocationPicker({
   // 用户点选的项 id；'__none__' 表示选择了"不显示位置"。
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+  const overlayAnim = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(visible);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -153,23 +154,37 @@ export default function LocationPicker({
   const pageIndexRef = useRef<number>(-1);
   const loadingMoreRef = useRef<boolean>(false);
 
-  // 入场/出场动画
+  // 入场/出场动画：面板从底部滑入，遮罩淡入
   useEffect(() => {
     if (visible) {
       setMounted(true);
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 260,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 260,
+          useNativeDriver: true,
+        }),
+        Animated.timing(overlayAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else if (mounted) {
-      Animated.timing(slideAnim, {
-        toValue: SCREEN_HEIGHT,
-        duration: 220,
-        useNativeDriver: true,
-      }).start(() => setMounted(false));
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: SHEET_HEIGHT,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.timing(overlayAnim, {
+          toValue: 0,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]).start(() => setMounted(false));
     }
-  }, [visible, slideAnim, mounted]);
+  }, [visible, slideAnim, overlayAnim, mounted]);
 
   // Android 硬件返回键
   useEffect(() => {
@@ -459,11 +474,27 @@ export default function LocationPicker({
   if (!mounted) return null;
 
   return (
-    <Animated.View
-      style={[styles.root, { transform: [{ translateY: slideAnim }] }]}
+    <View
+      style={styles.root}
       pointerEvents={visible ? 'auto' : 'none'}
     >
-      <SafeAreaView style={styles.safe}>
+      <TouchableWithoutFeedback onPress={onClose}>
+        <Animated.View
+          style={[
+            styles.overlay,
+            {
+              opacity: overlayAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.45],
+              }),
+            },
+          ]}
+        />
+      </TouchableWithoutFeedback>
+
+      <Animated.View
+        style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
+      >
         <View style={styles.header}>
           <TouchableOpacity
             onPress={onClose}
@@ -471,7 +502,7 @@ export default function LocationPicker({
           >
             <Text style={styles.headerBtn}>取消</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>位置</Text>
+          <Text style={styles.headerTitle}>所在位置</Text>
           <TouchableOpacity
             onPress={handleConfirm}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -577,8 +608,8 @@ export default function LocationPicker({
             )}
           />
         )}
-      </SafeAreaView>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -589,13 +620,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#fff',
+    justifyContent: 'flex-end',
     zIndex: 100,
     elevation: 100,
   },
-  safe: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+  },
+  sheet: {
+    height: SHEET_HEIGHT,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
   },
   header: {
     height: 48,

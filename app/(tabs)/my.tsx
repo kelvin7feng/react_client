@@ -10,7 +10,13 @@ import {
     TouchableOpacity,
     Dimensions,
     Animated,
+    LayoutAnimation,
+    UIManager,
 } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
@@ -202,6 +208,20 @@ export default function MyScreen() {
         });
         return off;
     }, []);
+
+    useEffect(() => {
+        const off = EventBus.on(Events.ARTICLE_DELETED, ({ articleId }: { articleId: number }) => {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            const remove = (prev: any[]) => prev.filter(item => item.id !== articleId);
+            setMyNotes(remove);
+            setMyFavorites(remove);
+            setMyLiked(remove);
+            setMyViewed(remove);
+            queryClient.invalidateQueries({ queryKey: ['myHome'] });
+            queryClient.removeQueries({ queryKey: queryKeys.articlePage(articleId, userId) });
+        });
+        return off;
+    }, [queryClient, userId]);
 
     const handleAuthorPress = useCallback((authorId: number) => {
         navigateToUserProfile(router, authorId, userId ?? null);

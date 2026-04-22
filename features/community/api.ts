@@ -149,3 +149,21 @@ export function publishArticle(formData: FormData) {
     })
   );
 }
+
+export function deleteArticle(articleId: number) {
+  return unwrapData<{}>(
+    requestJson(API_ENDPOINTS.DELETE_ARTICLE, {
+      method: 'POST',
+      body: JSON.stringify({ article_id: articleId }),
+    })
+  );
+}
+
+export function updateArticleVisibility(articleId: number, visibility: number) {
+  return unwrapData<{}>(
+    requestJson(API_ENDPOINTS.UPDATE_ARTICLE_VISIBILITY, {
+      method: 'POST',
+      body: JSON.stringify({ article_id: articleId, visibility }),
+    })
+  );
+}

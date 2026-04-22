@@ -28,6 +28,12 @@ import {
 } from '../../components/AlbumPicker';
 import { LocationPicker } from '../../components/LocationPicker';
 import { usePublishTask } from '../../components/PublishTaskManager';
+import {
+    VisibilityPicker,
+    VISIBILITY_CODE,
+    VISIBILITY_LABELS,
+    type VisibilityOption,
+} from '../../components/VisibilityPicker';
 
 const DRAFT_KEY = 'publish_draft';
 
@@ -53,6 +59,22 @@ export default function PublishScreen() {
     const [selectedTopic, setSelectedTopic] = useState('');
     const [location, setLocation] = useState('');
     const [locationDetail, setLocationDetail] = useState<LocationDetail | null>(null);
+    // 可见性：默认公开。allowed/denied 为"只给谁看/不给谁看"的 userId 列表，
+    // 当前仅维护在客户端（入口按钮），后端只存储主 visibility 字段。
+    const [visibility, setVisibility] = useState<VisibilityOption>('public');
+    const [allowedUserIds, setAllowedUserIds] = useState<string[]>([]);
+    const [deniedUserIds, setDeniedUserIds] = useState<string[]>([]);
+    const [visibilityPickerVisible, setVisibilityPickerVisible] = useState(false);
+    // 已插入到正文的话题集合。点击话题追加到正文后，从选择列表中移除
+    const [usedTopics, setUsedTopics] = useState<string[]>([]);
+    // 维护正文 TextInput 的光标选区，用于把话题插入到当前光标处
+    const [contentSelection, setContentSelection] = useState<{ start: number; end: number }>({
+        start: 0,
+        end: 0,
+    });
+    // 正文是否真正处于聚焦状态：只有聚焦时才把 selection 受控传给 TextInput，
+    // 否则持续受控的 selection 会在进入/切回本页时强制吸附焦点并弹键盘。
+    const [contentFocused, setContentFocused] = useState(false);
     const [draftLoaded, setDraftLoaded] = useState(false);
     const [editorVisible, setEditorVisible] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -81,6 +103,16 @@ export default function PublishScreen() {
                     if (draft.location) setLocation(draft.location);
                     if (draft.locationDetail) setLocationDetail(draft.locationDetail);
                     if (draft.selectedImages) setSelectedImages(draft.selectedImages);
+                    if (
+                        draft.visibility === 'public' ||
+                        draft.visibility === 'mutual' ||
+                        draft.visibility === 'private'
+                    ) {
+                        setVisibility(draft.visibility);
+                    }
+                    if (Array.isArray(draft.allowedUserIds)) setAllowedUserIds(draft.allowedUserIds);
+                    if (Array.isArray(draft.deniedUserIds)) setDeniedUserIds(draft.deniedUserIds);
+                    if (Array.isArray(draft.usedTopics)) setUsedTopics(draft.usedTopics);
                 }
             } catch {} finally { setDraftLoaded(true); }
         })();
@@ -106,13 +138,35 @@ export default function PublishScreen() {
 
     const saveDraftToStorage = useCallback(async () => {
         try {
-            const draft = { title, content, selectedTopic, location, locationDetail, selectedImages };
+            const draft = {
+                title,
+                content,
+                selectedTopic,
+                location,
+                locationDetail,
+                selectedImages,
+                visibility,
+                allowedUserIds,
+                deniedUserIds,
+                usedTopics,
+            };
             const hasContent = title || content || selectedTopic || location || selectedImages.length > 0;
             if (hasContent) {
                 await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
             }
         } catch {}
-    }, [title, content, selectedTopic, location, locationDetail, selectedImages]);
+    }, [
+        title,
+        content,
+        selectedTopic,
+        location,
+        locationDetail,
+        selectedImages,
+        visibility,
+        allowedUserIds,
+        deniedUserIds,
+        usedTopics,
+    ]);
 
     const clearDraft = async () => {
         try { await AsyncStorage.removeItem(DRAFT_KEY); } catch {}
@@ -182,6 +236,45 @@ export default function PublishScreen() {
         [setDragState]
     );
 
+    // 点击话题：把 "#话题 " 追加到正文当前光标处，并把光标移动到插入文本之后。
+    // 同时把最后一次点击的话题记录为主话题（selectedTopic），继续上报给服务端。
+    // 插入后的话题会加入 usedTopics，从话题选择列表中移除，避免重复插入。
+    const handleTopicPress = useCallback(
+        (topic: string) => {
+            const tag = `#${topic} `;
+            setContent((prev) => {
+                const start = Math.min(Math.max(contentSelection.start, 0), prev.length);
+                const end = Math.min(Math.max(contentSelection.end, start), prev.length);
+                const next = prev.slice(0, start) + tag + prev.slice(end);
+                // 插入后把光标挪到新内容末尾（下一轮 onSelectionChange 会覆盖为真实值）。
+                const caret = start + tag.length;
+                setContentSelection({ start: caret, end: caret });
+                return next;
+            });
+            setSelectedTopic(topic);
+            setUsedTopics((prev) => (prev.includes(topic) ? prev : [...prev, topic]));
+        },
+        [contentSelection]
+    );
+
+    // 过滤掉已插入到正文的话题，避免用户重复添加
+    const availableTopics = useMemo(
+        () => topics.filter((t) => !usedTopics.includes(t)),
+        [usedTopics]
+    );
+
+    const handleOpenVisibilityPicker = useCallback(() => {
+        setVisibilityPickerVisible(true);
+    }, []);
+
+    const handleOpenAllowedUsers = useCallback(() => {
+        Alert.alert('提示', '选择"只给谁看"的功能即将上线');
+    }, []);
+
+    const handleOpenDeniedUsers = useCallback(() => {
+        Alert.alert('提示', '选择"不给谁看"的功能即将上线');
+    }, []);
+
     const openEditor = (index: number) => {
         setEditorInAlbum(false);
         setEditingIndex(index);
@@ -244,6 +337,9 @@ export default function PublishScreen() {
             formData.append('topic', selectedTopic);
         }
 
+        // 可见性：以数字字符串形式上报（0-公开 / 1-仅互关 / 2-仅自己）
+        formData.append('visibility', String(VISIBILITY_CODE[visibility]));
+
         if (locationDetail) {
             formData.append('location_province', locationDetail.province);
             formData.append('location_city', locationDetail.city);
@@ -277,6 +373,10 @@ export default function PublishScreen() {
         setSelectedTopic('');
         setLocation('');
         setLocationDetail(null);
+        setVisibility('public');
+        setAllowedUserIds([]);
+        setDeniedUserIds([]);
+        setUsedTopics([]);
         handledNewImagesRef.current = null;
 
         router.back();
@@ -307,6 +407,10 @@ export default function PublishScreen() {
         setLocation('');
         setLocationDetail(null);
         setSelectedImages([]);
+        setVisibility('public');
+        setAllowedUserIds([]);
+        setDeniedUserIds([]);
+        setUsedTopics([]);
     }, []);
 
     const handleBackPress = useCallback(() => {
@@ -399,7 +503,7 @@ export default function PublishScreen() {
                     <View style={styles.inputSection}>
                         <TextInput
                             style={styles.titleInput}
-                            placeholder="请输入标题"
+                            placeholder="添加标题"
                             value={title}
                             onChangeText={setTitle}
                             maxLength={50}
@@ -410,44 +514,50 @@ export default function PublishScreen() {
                     <View style={styles.inputSection}>
                         <TextInput
                             style={styles.contentInput}
-                            placeholder="分享你的故事..."
+                            placeholder="添加正文"
                             value={content}
                             onChangeText={setContent}
                             multiline
                             numberOfLines={5}
                             maxLength={2000}
+                            selection={contentFocused ? contentSelection : undefined}
+                            onFocus={() => setContentFocused(true)}
+                            onBlur={() => setContentFocused(false)}
+                            onSelectionChange={(e) =>
+                                setContentSelection(e.nativeEvent.selection)
+                            }
                         />
                         <Text style={styles.charCount}>{content.length}/2000</Text>
                     </View>
 
-                    {/* 话题选择 */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>选择话题</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.topicScroll}>
-                            {topics.map((topic, index) => (
-                                <TouchableOpacity
-                                    key={index}
-                                    style={[
-                                        styles.topicButton,
-                                        selectedTopic === topic && styles.selectedTopicButton
-                                    ]}
-                                    onPress={() => setSelectedTopic(
-                                        selectedTopic === topic ? '' : topic
-                                    )}
-                                >
-                                    <Text style={[
-                                        styles.topicText,
-                                        selectedTopic === topic && styles.selectedTopicText
-                                    ]}>
-                                        #{topic}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-
-                    {/* 分割线 */}
-                    <View style={CommonStyles.divider} />
+                    {/* 话题选择：点击话题会把 #xxx 追加到正文当前光标处，
+                        已插入的话题会从列表移除；全部用完时整块隐藏 */}
+                    {availableTopics.length > 0 ? (
+                        <View style={[styles.section, CommonStyles.borderBottom]}>
+                            <Text style={styles.sectionTitle}>选择话题</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.topicScroll}>
+                                {availableTopics.map((topic) => (
+                                    <TouchableOpacity
+                                        key={topic}
+                                        style={[
+                                            styles.topicButton,
+                                            selectedTopic === topic && styles.selectedTopicButton,
+                                        ]}
+                                        onPress={() => handleTopicPress(topic)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.topicText,
+                                                selectedTopic === topic && styles.selectedTopicText,
+                                            ]}
+                                        >
+                                            #{topic}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    ) : null}
 
                     {/* 位置选择 */}
                     <TouchableOpacity
@@ -465,7 +575,7 @@ export default function PublishScreen() {
                                 location && styles.locationTextActive,
                             ]}
                         >
-                            {location || '位置'}
+                            {location || '所在位置'}
                         </Text>
                         {location ? (
                             <TouchableOpacity
@@ -485,8 +595,33 @@ export default function PublishScreen() {
                         ) : null}
                     </TouchableOpacity>
 
-                    {/* 分割线 */}
-                    <View style={CommonStyles.divider} />
+                    {/* 可见性选择：默认"公开可见"，点击后底部弹出 Modal 选择具体可见范围 */}
+                    <TouchableOpacity
+                        style={styles.locationSection}
+                        onPress={handleOpenVisibilityPicker}
+                    >
+                        <Ionicons
+                            name={
+                                visibility === 'public'
+                                    ? 'lock-open-outline'
+                                    : visibility === 'mutual'
+                                        ? 'people-outline'
+                                        : 'lock-closed-outline'
+                            }
+                            size={20}
+                            color={Colors.textSecondary}
+                        />
+                        <Text
+                            style={[styles.locationText, styles.locationTextActive]}
+                        >
+                            {VISIBILITY_LABELS[visibility]}
+                        </Text>
+                        <Ionicons
+                            name="chevron-forward"
+                            size={18}
+                            color={Colors.textTertiary}
+                        />
+                    </TouchableOpacity>
                 </ScrollView>
 
                 {/* 底部按钮 */}
@@ -548,6 +683,17 @@ export default function PublishScreen() {
                 visible={locationPickerVisible}
                 onClose={() => setLocationPickerVisible(false)}
                 onConfirm={handleLocationPicked}
+            />
+
+            <VisibilityPicker
+                visible={visibilityPickerVisible}
+                value={visibility}
+                allowedCount={allowedUserIds.length}
+                deniedCount={deniedUserIds.length}
+                onClose={() => setVisibilityPickerVisible(false)}
+                onChange={(next) => setVisibility(next)}
+                onOpenAllowed={handleOpenAllowedUsers}
+                onOpenDenied={handleOpenDeniedUsers}
             />
 
             <AlbumPicker
@@ -665,6 +811,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         padding: Spacing.lg,
+        ...CommonStyles.borderBottom,
     },
     locationText: {
         marginLeft: Spacing.sm,

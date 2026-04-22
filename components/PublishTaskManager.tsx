@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
+import { EventBus, Events } from '@/config/events';
 
 type ToastKind = 'success' | 'error';
 
@@ -142,7 +143,11 @@ export function PublishTaskProvider({
         if (kind === 'success') {
           setProgress(1);
           queryClient.invalidateQueries({ queryKey: ['myHome'] });
+          // feed 前缀匹配：包含 ['feed','recommend',page] / ['feed','following',page] / ['feed','nearby',...]
           queryClient.invalidateQueries({ queryKey: ['feed'] });
+          // 首页推荐/关注/附近 tab 使用本地 tabStates 管理数据，React Query 仅做缓存，
+          // 单纯 invalidate 不会触发重新拉取，这里额外 emit 一个事件通知首页刷新。
+          EventBus.emit(Events.ARTICLE_PUBLISHED, { articleId });
           showToast(message, 'success');
           onSuccess?.(articleId);
         } else {

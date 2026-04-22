@@ -121,11 +121,13 @@ export default function ActionSheet({
                   {opt.label}
                 </Text>
               </TouchableOpacity>
-              <View style={styles.divider} />
+              {i < options.length - 1 ? <View style={styles.divider} /> : null}
             </Fragment>
           ))}
+          {/* iOS 风格：最后一个 option 与 "取消" 之间插入一条明显的灰色分隔带 */}
+          <View style={styles.cancelGap} />
           <TouchableOpacity
-            style={[styles.row, styles.cancelRow]}
+            style={styles.row}
             activeOpacity={0.6}
             onPress={onClose}
           >
@@ -180,9 +182,10 @@ const styles = StyleSheet.create({
   cancelText: {
     fontWeight: '600',
   },
-  // 在最后一个 option（如"从手机相册选择"）与"取消"之间额外增加 2px 视觉间距
-  cancelRow: {
-    marginTop: 2,
+  // "取消" 前的灰色分隔带（iOS ActionSheet 风格）
+  cancelGap: {
+    height: 3,
+    backgroundColor: '#f2f2f2',
   },
   divider: {
     height: StyleSheet.hairlineWidth,

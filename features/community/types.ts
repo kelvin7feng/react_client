@@ -32,6 +32,7 @@ export type ArticleDetail = {
   view_count: number;
   author_name?: string;
   author_avatar?: string;
+  visibility?: number;
   images: ArticleImage[];
   liked: boolean;
   favorited: boolean;

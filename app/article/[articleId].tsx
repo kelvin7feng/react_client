@@ -29,13 +29,17 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { useArticlePage } from '@/features/bff/hooks';
+import { queryKeys } from '@/shared/query/keys';
 import {
     createComment,
     fetchChildComments as fetchChildCommentList,
     toggleArticleFavorite,
     toggleArticleLike as toggleArticleLikeRequest,
     toggleCommentLike as toggleCommentLikeRequest,
+    deleteArticle,
+    updateArticleVisibility,
 } from '@/features/community/api';
 import { toggleFollow } from '@/features/social/api';
 import { API_BASE_URL } from '../../config/api';
@@ -44,6 +48,13 @@ import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { formatCount, navigateToUserProfile } from '../../config/utils';
 import { RemoteImage } from '../../components/RemoteImage';
+import { ActionSheet } from '../../components/AlbumPicker';
+import {
+    VisibilityPicker,
+    VISIBILITY_LABELS,
+    VISIBILITY_CODE,
+    type VisibilityOption,
+} from '../../components/VisibilityPicker';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ARTICLE_SLIDE_DURATION = 280;
@@ -76,6 +87,7 @@ export default function ArticleDetailScreen() {
     const { articleId } = useLocalSearchParams<{ articleId: string }>();
     const router = useRouter();
     const { userId, isLoggedIn } = useAuth();
+    const queryClient = useQueryClient();
 
     const numericArticleId = Number(articleId);
     const { data: pageData, isLoading: loading, refetch } = useArticlePage(numericArticleId, userId);
@@ -90,7 +102,12 @@ export default function ArticleDetailScreen() {
     const [submitting, setSubmitting] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [shareModalVisible, setShareModalVisible] = useState(false);
+    const [manageSheetVisible, setManageSheetVisible] = useState(false);
+    const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+    const [visibilityPickerVisible, setVisibilityPickerVisible] = useState(false);
+    const [articleVisibility, setArticleVisibility] = useState<VisibilityOption>('public');
     const shareSlideAnim = useRef(new RNAnimated.Value(0)).current;
+    const deleteSlideAnim = useRef(new RNAnimated.Value(0)).current;
     const inputRef = useRef<TextInput>(null);
     const prevArticleIdRef = useRef<number | null>(null);
     const translateX = useSharedValue(SCREEN_WIDTH);
@@ -188,6 +205,10 @@ export default function ArticleDetailScreen() {
             prevArticleIdRef.current = pageData.article.id;
         }
         setComments(pageData.comments || []);
+        const v = pageData.article.visibility;
+        if (v === 1) setArticleVisibility('mutual');
+        else if (v === 2) setArticleVisibility('private');
+        else setArticleVisibility('public');
     }, [pageData]);
 
     const isOwnArticle = article?.author_id === userId;
@@ -322,6 +343,128 @@ export default function ArticleDetailScreen() {
             setFavOverride({ favorited: prevFavorited, count: prevCount });
         }
     };
+
+    const openDeleteModal = () => {
+        setDeleteModalVisible(true);
+        RNAnimated.spring(deleteSlideAnim, {
+            toValue: 1,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+        }).start();
+    };
+
+    const closeDeleteModal = (cb?: () => void) => {
+        RNAnimated.timing(deleteSlideAnim, {
+            toValue: 0,
+            duration: 120,
+            useNativeDriver: true,
+        }).start(() => {
+            setDeleteModalVisible(false);
+            cb?.();
+        });
+    };
+
+    const handleEditArticle = () => {
+        setManageSheetVisible(false);
+        router.push({
+            pathname: '/(tabs)/publish',
+            params: {
+                editArticleId: String(article!.id),
+                editTitle: article!.title,
+                editContent: article!.content,
+                editTopic: article!.topic || '',
+                editImages: JSON.stringify(article!.images?.map((img: any) => img.image_url) || []),
+                editVisibility: String(article!.visibility ?? 0),
+            },
+        });
+    };
+
+    const handleOpenPermissions = () => {
+        setManageSheetVisible(false);
+        setVisibilityPickerVisible(true);
+    };
+
+    const handleVisibilityChange = async (next: VisibilityOption) => {
+        const prev = articleVisibility;
+        setArticleVisibility(next);
+        try {
+            await updateArticleVisibility(Number(articleId), VISIBILITY_CODE[next]);
+            EventBus.emit(Events.ARTICLE_VISIBILITY_CHANGED, {
+                articleId: Number(articleId),
+                visibility: VISIBILITY_CODE[next],
+            });
+        } catch {
+            setArticleVisibility(prev);
+            Alert.alert('失败', '修改可见性失败');
+        }
+    };
+
+    const handleOpenDeleteModal = () => {
+        setManageSheetVisible(false);
+        openDeleteModal();
+    };
+
+    const invalidateAfterDelete = () => {
+        queryClient.invalidateQueries({ queryKey: ['myHome'] });
+        queryClient.removeQueries({ queryKey: queryKeys.articlePage(Number(articleId), userId) });
+    };
+
+    const handleDeleteAndReEdit = () => {
+        closeDeleteModal(() => {
+            const imgs = article!.images?.map((img: any) => img.image_url) || [];
+            deleteArticle(Number(articleId)).then(() => {
+                EventBus.emit(Events.ARTICLE_DELETED, { articleId: Number(articleId) });
+                invalidateAfterDelete();
+                router.replace({
+                    pathname: '/(tabs)/publish',
+                    params: {
+                        editTitle: article!.title,
+                        editContent: article!.content,
+                        editTopic: article!.topic || '',
+                        editImages: JSON.stringify(imgs),
+                    },
+                });
+            }).catch(() => {
+                Alert.alert('失败', '删除失败');
+            });
+        });
+    };
+
+    const handleSetPrivate = async () => {
+        closeDeleteModal(async () => {
+            const prev = articleVisibility;
+            setArticleVisibility('private');
+            try {
+                await updateArticleVisibility(Number(articleId), VISIBILITY_CODE.private);
+                EventBus.emit(Events.ARTICLE_VISIBILITY_CHANGED, {
+                    articleId: Number(articleId),
+                    visibility: VISIBILITY_CODE.private,
+                });
+            } catch {
+                setArticleVisibility(prev);
+                Alert.alert('失败', '修改可见性失败');
+            }
+        });
+    };
+
+    const handleDeleteArticle = () => {
+        closeDeleteModal(() => {
+            deleteArticle(Number(articleId)).then(() => {
+                EventBus.emit(Events.ARTICLE_DELETED, { articleId: Number(articleId) });
+                invalidateAfterDelete();
+                router.back();
+            }).catch(() => {
+                Alert.alert('失败', '删除失败');
+            });
+        });
+    };
+
+    const visibilityIcon = articleVisibility === 'public'
+        ? 'lock-open-outline' as const
+        : articleVisibility === 'mutual'
+            ? 'people-outline' as const
+            : 'lock-closed-outline' as const;
 
     const handleCommentLike = async (commentId: number, currentlyLiked: boolean, currentCount: number) => {
         if (!isLoggedIn) { router.push('/login'); return; }
@@ -652,7 +795,16 @@ export default function ArticleDetailScreen() {
 
                 {/* 底部固定栏 */}
                 <View style={styles.bottomBar}>
-                    <View style={styles.inputWrapper}>
+                    {isOwnArticle && (
+                        <TouchableOpacity style={styles.manageButton} onPress={() => setManageSheetVisible(true)}>
+                            <Ionicons name={visibilityIcon} size={18} color={Colors.textSecondary} />
+                            <Text style={styles.manageVisibilityText} numberOfLines={1}>
+                                {VISIBILITY_LABELS[articleVisibility]}
+                            </Text>
+                            <Text style={styles.manageSubText}>编辑和权限设置</Text>
+                        </TouchableOpacity>
+                    )}
+                    <View style={[styles.inputWrapper, isOwnArticle && { flex: 4 }]}>
                         <TextInput
                             ref={inputRef}
                             style={styles.commentInput}
@@ -676,7 +828,7 @@ export default function ArticleDetailScreen() {
                         ) : null}
                     </View>
 
-                    <View style={styles.actionsRow}>
+                    <View style={[styles.actionsRow, isOwnArticle && { flex: 3 }]}>
                         <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
                             <Ionicons
                                 name={liked ? 'heart' : 'heart-outline'}
@@ -701,6 +853,80 @@ export default function ArticleDetailScreen() {
                     </View>
                 </View>
             </KeyboardAvoidingView>
+
+            {/* 管理操作面板 */}
+            <ActionSheet
+                visible={manageSheetVisible}
+                onClose={() => setManageSheetVisible(false)}
+                options={[
+                    { label: '编辑', onPress: handleEditArticle },
+                    { label: '权限设置', onPress: handleOpenPermissions },
+                    { label: '删除', onPress: handleOpenDeleteModal, destructive: true },
+                ]}
+            />
+
+            {/* 删除确认面板 */}
+            <Modal
+                visible={deleteModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => closeDeleteModal()}
+            >
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity
+                        style={StyleSheet.absoluteFill}
+                        activeOpacity={1}
+                        onPress={() => closeDeleteModal()}
+                    />
+                    <RNAnimated.View
+                        style={[
+                            styles.deleteSheet,
+                            {
+                                transform: [{
+                                    translateY: deleteSlideAnim.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [400, 0],
+                                    }),
+                                }],
+                            },
+                        ]}
+                    >
+                        <View style={styles.deleteTopSection}>
+                            <TouchableOpacity style={styles.deleteOption} onPress={handleDeleteAndReEdit}>
+                                <Text style={styles.deleteOptionText}>删除并重新编辑</Text>
+                            </TouchableOpacity>
+                            <View style={styles.deleteThinDivider} />
+                            <TouchableOpacity style={styles.deleteOption} onPress={handleSetPrivate}>
+                                <Text style={styles.deleteOptionText}>仅自己可见</Text>
+                            </TouchableOpacity>
+                            <View style={styles.deleteThinDivider} />
+                            <TouchableOpacity style={styles.deleteOption} onPress={handleDeleteArticle}>
+                                <Text style={[styles.deleteOptionText, { color: '#FF3B30' }]}>删除笔记</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.deleteGap} />
+                        <View style={styles.deleteBottomSection}>
+                            <TouchableOpacity style={styles.deleteOption} onPress={() => closeDeleteModal()}>
+                                <Text style={styles.deleteCancelText}>取消</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </RNAnimated.View>
+                </View>
+            </Modal>
+
+            {/* 权限设置 */}
+            <VisibilityPicker
+                visible={visibilityPickerVisible}
+                value={articleVisibility}
+                allowedCount={0}
+                deniedCount={0}
+                onClose={() => setVisibilityPickerVisible(false)}
+                onChange={handleVisibilityChange}
+                onOpenAllowed={() => {}}
+                onOpenDenied={() => {}}
+                hideTitle
+                hideFooter
+            />
         </SafeAreaView>
         );
     };
@@ -1067,5 +1293,64 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: Colors.textSecondary,
         marginLeft: 2,
+    },
+
+    // 管理按钮（底部栏左侧）
+    manageButton: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingRight: Spacing.sm,
+        marginRight: Spacing.xs,
+    },
+    manageVisibilityText: {
+        fontSize: 10,
+        color: Colors.textSecondary,
+        marginTop: 1,
+        maxWidth: 60,
+    },
+    manageSubText: {
+        fontSize: 9,
+        color: Colors.textTertiary,
+        marginTop: 1,
+    },
+
+    // 删除确认面板
+    deleteSheet: {
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        overflow: 'hidden',
+        paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    },
+    deleteTopSection: {
+        backgroundColor: Colors.backgroundWhite,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        overflow: 'hidden',
+    },
+    deleteThinDivider: {
+        height: 2,
+        backgroundColor: '#F0F0F0',
+    },
+    deleteGap: {
+        height: 8,
+        backgroundColor: '#E8E8E8',
+    },
+    deleteBottomSection: {
+        backgroundColor: Colors.backgroundWhite,
+    },
+    deleteOption: {
+        minHeight: 56,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: Spacing.lg,
+    },
+    deleteOptionText: {
+        fontSize: FontSize.md + 1,
+        color: Colors.textPrimary,
+    },
+    deleteCancelText: {
+        fontSize: FontSize.md + 1,
+        fontWeight: '600',
+        color: Colors.textPrimary,
     },
 });

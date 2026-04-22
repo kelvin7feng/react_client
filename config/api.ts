@@ -37,6 +37,8 @@ export const API_ENDPOINTS = {
   TOGGLE_LIKE: '/togglelike',
   TOGGLE_FAVORITE: '/togglefavorite',
   TOGGLE_COMMENT_LIKE: '/togglecommentlike',
+  DELETE_ARTICLE: '/deletearticle',
+  UPDATE_ARTICLE_VISIBILITY: '/updatearticlevisibility',
 
   // 关注
   TOGGLE_FOLLOW: '/togglefollow',
