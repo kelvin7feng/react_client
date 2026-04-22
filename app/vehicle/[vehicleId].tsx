@@ -6,7 +6,6 @@ import {
     Text,
     ScrollView,
     StyleSheet,
-    ActivityIndicator,
     Alert,
     TouchableOpacity,
     FlatList,
@@ -19,6 +18,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVehicleDetail } from '@/features/catalog/hooks';
 import type { VehicleDetail, VehicleImage as CatalogVehicleImage } from '@/features/catalog/types';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { RemoteImage } from '../../components/RemoteImage';
 
@@ -290,10 +291,13 @@ const VehicleDetailScreen = () => {
         return (
             <View style={styles.pageContainer}>
                 {renderHeader()}
-                <View style={CommonStyles.centerContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
-                    <Text style={CommonStyles.loadingTextSmall}>正在加载车辆详情...</Text>
-                </View>
+                <LoadingStateView
+                    text="正在加载车辆详情..."
+                    size={28}
+                    color={Colors.primary}
+                    style={CommonStyles.centerContainer}
+                    textStyle={CommonStyles.loadingTextSmall}
+                />
             </View>
         );
     }

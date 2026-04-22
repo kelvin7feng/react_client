@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, ViewStyle } from 'react-native';
 import Animated, {
   SharedValue,
   useSharedValue,
@@ -24,7 +24,7 @@ const PULL_THRESHOLD = 10;
 const HIDDEN_TRANSLATE_Y = -INDICATOR_HEIGHT;
 const RESTING_TRANSLATE_Y = 10;
 
-const ROTATE_MS = 1400;
+const ROTATE_MS = 1000;
 const MIN_GAP_ANGLE = 10;
 const MAX_GAP_ANGLE = 60;
 const ROUND_CAP_COMPENSATION = STROKE_WIDTH;
@@ -38,22 +38,32 @@ function getRotationAngle(progress: number) {
 }
 
 interface Props {
-  scrollY: SharedValue<number>;
-  refreshing: boolean;
+  scrollY?: SharedValue<number>;
+  refreshing?: boolean;
+  mode?: 'pull' | 'inline';
   size?: number;
   color?: string;
+  style?: ViewStyle;
 }
 
 export function BouncingDotsIndicator({
   scrollY,
-  refreshing,
+  refreshing = false,
+  mode,
   size = INDICATOR_SIZE,
   color = '#999',
+  style,
 }: Props) {
+  const resolvedMode = mode ?? (scrollY ? 'pull' : 'inline');
   const rotationProgress = useSharedValue(0);
 
   useAnimatedReaction(
-    () => scrollY.value < -PULL_THRESHOLD || refreshing,
+    () => {
+      if (resolvedMode === 'inline') {
+        return true;
+      }
+      return (scrollY?.value ?? 0) < -PULL_THRESHOLD || refreshing;
+    },
     (shouldAnimate, previousShouldAnimate) => {
       if (shouldAnimate === previousShouldAnimate) {
         return;
@@ -72,15 +82,25 @@ export function BouncingDotsIndicator({
       cancelAnimation(rotationProgress);
       rotationProgress.value = 0;
     },
-    [refreshing],
+    [refreshing, resolvedMode],
   );
 
   const visible = useDerivedValue(() => {
-    return scrollY.value < -PULL_THRESHOLD || refreshing;
+    if (resolvedMode === 'inline') {
+      return true;
+    }
+    return (scrollY?.value ?? 0) < -PULL_THRESHOLD || refreshing;
   });
 
   const wrapperStyle = useAnimatedStyle(() => {
-    const pullDistance = Math.max(0, -scrollY.value);
+    if (resolvedMode === 'inline') {
+      return {
+        opacity: 1,
+        transform: [{ translateY: 0 }],
+      };
+    }
+
+    const pullDistance = Math.max(0, -(scrollY?.value ?? 0));
 
     if (!visible.value) {
       return {
@@ -129,7 +149,10 @@ export function BouncingDotsIndicator({
   const c = 2 * Math.PI * r;
 
   return (
-    <Animated.View pointerEvents="none" style={[styles.wrapper, wrapperStyle]}>
+    <Animated.View
+      pointerEvents="none"
+      style={[resolvedMode === 'pull' ? styles.pullWrapper : styles.inlineWrapper, style, wrapperStyle]}
+    >
       <Animated.View style={spinStyle}>
         <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <AnimatedCircle
@@ -149,7 +172,7 @@ export function BouncingDotsIndicator({
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
+  pullWrapper: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -159,5 +182,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  inlineWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

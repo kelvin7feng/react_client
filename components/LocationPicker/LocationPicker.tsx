@@ -8,12 +8,12 @@ import {
   FlatList,
   StyleSheet,
   Animated,
-  ActivityIndicator,
   Dimensions,
   BackHandler,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Location from 'expo-location';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 // 面板占屏幕 3/4 高度，顶部留出 1/4 给遮罩（点击可关闭）
@@ -546,7 +546,7 @@ export default function LocationPicker({
 
         {loading ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator color="#999" />
+            <BouncingDotsIndicator mode="inline" size={18} color="#999" />
           </View>
         ) : permissionDenied ? (
           <View style={styles.loadingWrap}>
@@ -571,7 +571,7 @@ export default function LocationPicker({
             ListFooterComponent={
               searching || loadingMore ? (
                 <View style={styles.loadingWrap}>
-                  <ActivityIndicator color="#999" />
+                  <BouncingDotsIndicator mode="inline" size={18} color="#999" />
                 </View>
               ) : searchResults === null && !hasMore && listData.length > 1 ? (
                 <View style={styles.loadingWrap}>

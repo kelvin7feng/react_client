@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    Platform, ActivityIndicator, RefreshControl, Alert, Dimensions,
+    Platform, Alert, Dimensions, NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -19,6 +19,8 @@ import { useAuth } from '../../config/auth';
 import { RemoteImage } from '../../components/RemoteImage';
 import { openChat, preloadSessions } from '../../config/chatManager';
 import { useWSEvent } from '../../config/useWebSocket';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 
 type UnreadByType = { likes: number; follows: number; comments: number };
 
@@ -31,6 +33,7 @@ const NAV_BUTTONS = [
 const ACTION_BTN_WIDTH = 72;
 const TOTAL_ACTION_WIDTH = ACTION_BTN_WIDTH * 2;
 const SNAP_THRESHOLD = TOTAL_ACTION_WIDTH * 0.4;
+const REFRESH_TRIGGER_DISTANCE = 72;
 
 const formatTime = (timeStr: string) => {
     if (!timeStr) return '';
@@ -197,6 +200,7 @@ export default function MessageScreen() {
     const [conversations, setConversations] = useState<ConversationItem[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [activeSwipeId, setActiveSwipeId] = useState<string | null>(null);
+    const scrollY = useSharedValue(0);
 
     const {
         data: convData,
@@ -244,6 +248,17 @@ export default function MessageScreen() {
         refetchConversations().finally(() => setRefreshing(false));
         refetchUnread();
     };
+
+    const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        scrollY.value = e.nativeEvent.contentOffset.y;
+    }, []);
+
+    const handleScrollEndDrag = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        if (refreshing) return;
+        if (e.nativeEvent.contentOffset.y <= -REFRESH_TRIGGER_DISTANCE) {
+            handleRefresh();
+        }
+    }, [refreshing]);
 
     const handleTogglePin = useCallback(async (conv: any) => {
         try {
@@ -316,22 +331,27 @@ export default function MessageScreen() {
             </View>
 
             {loading ? (
-                <View style={s.center}><ActivityIndicator size="small" color={Colors.textTertiary} /></View>
+                <LoadingStateView style={s.center} size={24} color={Colors.textTertiary} />
             ) : (
-                <FlatList
-                    data={conversations}
-                    renderItem={renderConversationItem}
-                    keyExtractor={item => String(item.id)}
-                    contentContainerStyle={conversations.length === 0 ? s.emptyList : undefined}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-                    onScrollBeginDrag={() => { if (activeSwipeId) setActiveSwipeId(null); }}
-                    ListEmptyComponent={
-                        <View style={s.center}>
-                            <Ionicons name="chatbubbles-outline" size={48} color={Colors.borderDark} />
-                            <Text style={s.emptyText}>暂无私信</Text>
-                        </View>
-                    }
-                />
+                <View style={s.listContainer}>
+                    <BouncingDotsIndicator scrollY={scrollY} refreshing={refreshing} />
+                    <FlatList
+                        data={conversations}
+                        renderItem={renderConversationItem}
+                        keyExtractor={item => String(item.id)}
+                        contentContainerStyle={conversations.length === 0 ? s.emptyList : undefined}
+                        onScroll={handleScroll}
+                        onScrollEndDrag={handleScrollEndDrag}
+                        scrollEventThrottle={16}
+                        onScrollBeginDrag={() => { if (activeSwipeId) setActiveSwipeId(null); }}
+                        ListEmptyComponent={
+                            <View style={s.center}>
+                                <Ionicons name="chatbubbles-outline" size={48} color={Colors.borderDark} />
+                                <Text style={s.emptyText}>暂无私信</Text>
+                            </View>
+                        }
+                    />
+                </View>
             )}
         </View>
     );
@@ -349,6 +369,7 @@ const s = StyleSheet.create({
     navBadgeText: { color: '#fff', fontSize: 10, fontWeight: '600' as const },
     navLabel: { marginTop: Spacing.xs, fontSize: FontSize.xs, color: Colors.textSecondary },
 
+    listContainer: { flex: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 80 },
     emptyList: { flexGrow: 1 },
     emptyText: { marginTop: Spacing.md, fontSize: FontSize.sm, color: Colors.textTertiary },

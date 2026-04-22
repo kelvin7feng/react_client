@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   Dimensions,
   SafeAreaView,
   StatusBar,
@@ -18,6 +17,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import * as MediaLibrary from 'expo-media-library';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 
 const NUM_COLUMNS = 4;
 const ITEM_GAP = 2;
@@ -238,7 +238,7 @@ export default function AlbumPicker({
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               {finalizing ? (
-                <ActivityIndicator size="small" color="#ff2442" />
+                <BouncingDotsIndicator mode="inline" size={16} color="#ff2442" />
               ) : (
                 <Text
                   style={[
@@ -270,7 +270,7 @@ export default function AlbumPicker({
             ListFooterComponent={
               loading ? (
                 <View style={styles.loadingFooter}>
-                  <ActivityIndicator color="#888" />
+                  <BouncingDotsIndicator mode="inline" size={18} color="#888" />
                 </View>
               ) : null
             }

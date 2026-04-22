@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, Image, ScrollView, StyleSheet,
-    Alert, ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,6 +11,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { updateProfile } from '@/features/profile/api';
 import { useBasicInfo } from '@/features/profile/hooks';
 import { queryKeys } from '@/shared/query/keys';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
 
@@ -91,7 +93,7 @@ export default function ProfileEditScreen() {
                     <Text style={s.headerTitle}>编辑资料</Text>
                     <View style={s.backBtn} />
                 </View>
-                <View style={s.center}><ActivityIndicator /></View>
+                <LoadingStateView style={s.center} size={24} color={Colors.textTertiary} />
             </View>
         );
     }

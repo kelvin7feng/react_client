@@ -10,13 +10,13 @@ import {
     Animated as RNAnimated,
     Alert,
     Easing,
-    ActivityIndicator,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 import { Colors, FontSize, Spacing } from '../config/styles';
 import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
 
@@ -234,7 +234,7 @@ export default function ScannerScreen() {
                     <TouchableOpacity style={styles.albumBtn} onPress={handlePickImage} disabled={decoding}>
                         <View style={styles.albumIconWrapper}>
                             {decoding ? (
-                                <ActivityIndicator size="small" color="#fff" />
+                                <BouncingDotsIndicator mode="inline" size={16} color="#fff" />
                             ) : (
                                 <Ionicons name="images-outline" size={26} color="#fff" />
                             )}

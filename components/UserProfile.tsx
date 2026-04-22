@@ -4,7 +4,6 @@ import {
     View,
     StyleSheet,
     SafeAreaView,
-    ActivityIndicator,
     TouchableOpacity,
     Dimensions,
     Animated,
@@ -16,6 +15,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useUserHome } from '@/features/bff/hooks';
 import { toggleArticleLike } from '@/features/community/api';
 import { toggleFollow } from '@/features/social/api';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 import { buildApiUrl, API_ENDPOINTS } from '../config/api';
 import { Colors, Spacing, FontSize, Shadows } from '../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../config/events';
@@ -200,9 +201,7 @@ export default function UserProfile({
                         <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
                     </TouchableOpacity>
                 </View>
-                <View style={styles.centerWrap}>
-                    <ActivityIndicator size="small" color="gray" />
-                </View>
+                <LoadingStateView style={styles.centerWrap} size={24} color={Colors.textTertiary} />
             </SafeAreaView>
         );
     }
@@ -294,9 +293,7 @@ export default function UserProfile({
                         <Text style={styles.notesSectionTitle}>笔记</Text>
                     </View>
                     {loading ? (
-                        <View style={styles.tabLoadingWrap}>
-                            <ActivityIndicator size="small" color={Colors.textTertiary} />
-                        </View>
+                        <LoadingStateView style={styles.tabLoadingWrap} size={24} color={Colors.textTertiary} />
                     ) : notes.length === 0 ? (
                         <EmptyTabContent label="笔记" />
                     ) : (

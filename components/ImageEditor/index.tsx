@@ -6,7 +6,6 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  ActivityIndicator,
   Platform,
   StatusBar,
   Animated,
@@ -15,6 +14,7 @@ import {
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -504,7 +504,7 @@ export default function ImageEditor({
             )}
             {processing ? (
               <View style={styles.loading}>
-                <ActivityIndicator color="#fff" size="large" />
+                <BouncingDotsIndicator mode="inline" size={28} color="#fff" />
               </View>
             ) : null}
 

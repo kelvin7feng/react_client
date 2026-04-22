@@ -4,7 +4,6 @@ import {
     Text,
     FlatList,
     StyleSheet,
-    ActivityIndicator,
     Alert,
     TouchableOpacity,
 } from 'react-native';
@@ -12,6 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVehiclesByPrice } from '@/features/catalog/hooks';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../config/styles';
 import { RemoteImage } from '../components/RemoteImage';
 
@@ -99,10 +100,13 @@ export default function PriceVehiclesScreen() {
         <View style={styles.container}>
             {renderHeader()}
             {loading ? (
-                <View style={CommonStyles.loadingContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
-                    <Text style={CommonStyles.loadingTextSmall}>加载中...</Text>
-                </View>
+                <LoadingStateView
+                    text="加载中..."
+                    size={28}
+                    color={Colors.primary}
+                    style={CommonStyles.loadingContainer}
+                    textStyle={CommonStyles.loadingTextSmall}
+                />
             ) : (
                 <FlatList
                     data={vehicles}

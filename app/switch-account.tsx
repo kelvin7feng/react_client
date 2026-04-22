@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-    View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator,
+    View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,8 @@ import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth, type StoredAccount } from '../config/auth';
 import { RemoteImage } from '../components/RemoteImage';
 import { API_ENDPOINTS, buildApiUrl } from '../config/api';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 
 export default function SwitchAccountScreen() {
     const router = useRouter();
@@ -67,7 +69,7 @@ export default function SwitchAccountScreen() {
 
             <View style={styles.body}>
                 {loading ? (
-                    <ActivityIndicator size="large" color={Colors.textTertiary} style={{ marginTop: 60 }} />
+                    <LoadingStateView size={28} color={Colors.textTertiary} style={{ marginTop: 60 }} />
                 ) : (
                     <>
                         <View style={styles.card}>

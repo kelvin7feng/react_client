@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Dimensions,
@@ -26,6 +25,7 @@ import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/W
 import { SwipeTabView } from '../../components/SwipeTabView';
 import { SettingsDrawer } from '../../components/SettingsDrawer';
 import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const REFRESH_TRIGGER_DISTANCE = 72;
@@ -98,7 +98,7 @@ const TabContent = ({
 
         {state.loadingMore && (
           <View style={CommonStyles.loadingMoreContainer}>
-            <ActivityIndicator size="small" color={Colors.primaryBlue} />
+            <BouncingDotsIndicator mode="inline" size={18} color={Colors.primaryBlue} />
             <Text style={CommonStyles.loadingMoreText}>加载更多...</Text>
           </View>
         )}
@@ -114,10 +114,13 @@ const TabContent = ({
 };
 
 const LoadingView = () => (
-  <View style={CommonStyles.loadingContainer}>
-    <ActivityIndicator size="small" color="gray" />
-    <Text style={CommonStyles.loadingText}>数据加载中...</Text>
-  </View>
+  <LoadingStateView
+    text="数据加载中..."
+    size={24}
+    color={Colors.textTertiary}
+    style={CommonStyles.loadingContainer}
+    textStyle={CommonStyles.loadingText}
+  />
 );
 
 const ErrorView = ({ error, onRetry }: { error: string; onRetry: () => void }) => (

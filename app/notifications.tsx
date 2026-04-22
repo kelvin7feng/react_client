@@ -1,15 +1,18 @@
 import { useState, useCallback, useRef } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    SafeAreaView, Platform, ActivityIndicator, RefreshControl,
+    SafeAreaView, Platform, NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
+import { useSharedValue } from 'react-native-reanimated';
 import { buildApiUrl, API_ENDPOINTS, API_BASE_URL } from '../config/api';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
 import { navigateToUserProfile } from '../config/utils';
 import { RemoteImage } from '../components/RemoteImage';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 
 type NotificationType = 'likes' | 'follows' | 'comments';
 
@@ -26,6 +29,8 @@ const MSG_TYPE_CONFIG: Record<string, { icon: string; color: string; label: stri
     favorite: { icon: 'star', color: '#FFAA00', label: '收藏了你的笔记' },
     system: { icon: 'notifications', color: Colors.textSecondary, label: '系统通知' },
 };
+
+const REFRESH_TRIGGER_DISTANCE = 72;
 
 const formatTime = (timeStr: string) => {
     if (!timeStr) return '';
@@ -52,6 +57,7 @@ export default function NotificationsScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const hasFetched = useRef(false);
+    const scrollY = useSharedValue(0);
 
     const config = PAGE_CONFIG[type as NotificationType] || PAGE_CONFIG.likes;
 
@@ -79,6 +85,17 @@ export default function NotificationsScreen() {
         setRefreshing(true);
         fetchMessages();
     };
+
+    const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        scrollY.value = e.nativeEvent.contentOffset.y;
+    }, []);
+
+    const handleScrollEndDrag = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        if (refreshing) return;
+        if (e.nativeEvent.contentOffset.y <= -REFRESH_TRIGGER_DISTANCE) {
+            handleRefresh();
+        }
+    }, [refreshing]);
 
     const unreadCount = messages.filter(m => !m.is_read).length;
 
@@ -150,21 +167,26 @@ export default function NotificationsScreen() {
             </View>
 
             {loading ? (
-                <View style={s.center}><ActivityIndicator size="small" color={Colors.textTertiary} /></View>
+                <LoadingStateView style={s.center} size={24} color={Colors.textTertiary} />
             ) : (
-                <FlatList
-                    data={messages}
-                    renderItem={renderItem}
-                    keyExtractor={item => String(item.id)}
-                    contentContainerStyle={messages.length === 0 ? s.emptyList : undefined}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-                    ListEmptyComponent={
-                        <View style={s.center}>
-                            <Ionicons name={config.emptyIcon as any} size={48} color={Colors.borderDark} />
-                            <Text style={s.emptyText}>{config.emptyText}</Text>
-                        </View>
-                    }
-                />
+                <View style={s.listContainer}>
+                    <BouncingDotsIndicator scrollY={scrollY} refreshing={refreshing} />
+                    <FlatList
+                        data={messages}
+                        renderItem={renderItem}
+                        keyExtractor={item => String(item.id)}
+                        contentContainerStyle={messages.length === 0 ? s.emptyList : undefined}
+                        onScroll={handleScroll}
+                        onScrollEndDrag={handleScrollEndDrag}
+                        scrollEventThrottle={16}
+                        ListEmptyComponent={
+                            <View style={s.center}>
+                                <Ionicons name={config.emptyIcon as any} size={48} color={Colors.borderDark} />
+                                <Text style={s.emptyText}>{config.emptyText}</Text>
+                            </View>
+                        }
+                    />
+                </View>
             )}
         </SafeAreaView>
     );
@@ -178,6 +200,7 @@ const s = StyleSheet.create({
     markAllRead: { fontSize: FontSize.sm, color: Colors.primary, paddingHorizontal: Spacing.sm },
     headerRight: { width: 60 },
 
+    listContainer: { flex: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 80 },
     emptyList: { flexGrow: 1 },
     emptyText: { marginTop: Spacing.md, fontSize: FontSize.sm, color: Colors.textTertiary },

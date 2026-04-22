@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, FlatList,
-    StyleSheet, SafeAreaView, ActivityIndicator, Platform, ScrollView,
+    StyleSheet, SafeAreaView, Platform, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -11,6 +11,8 @@ import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
 import { formatCount } from '../config/utils';
 import { RemoteImage } from '../components/RemoteImage';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 
 const HISTORY_KEY = 'search_history';
 const MAX_HISTORY = 20;
@@ -189,7 +191,7 @@ export default function SearchScreen() {
             {!searched ? (
                 renderIdlePage()
             ) : loading ? (
-                <View style={s.center}><ActivityIndicator size="small" color={Colors.textTertiary} /></View>
+                <LoadingStateView style={s.center} size={24} color={Colors.textTertiary} />
             ) : results.length === 0 ? (
                 <View style={s.center}>
                     <Ionicons name="search-outline" size={48} color={Colors.borderDark} />

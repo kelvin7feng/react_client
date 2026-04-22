@@ -6,7 +6,6 @@ import {
     ScrollView,
     SafeAreaView,
     Platform,
-    ActivityIndicator,
     TouchableOpacity,
     Dimensions,
     Animated,
@@ -35,6 +34,8 @@ import { RemoteImage } from '../../components/RemoteImage';
 import { WaterfallArticleCard, WaterfallTwoColumnGrid } from '../../components/WaterfallArticleCard';
 import { SwipeTabView } from '../../components/SwipeTabView';
 import { SettingsDrawer } from '../../components/SettingsDrawer';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -245,10 +246,13 @@ export default function MyScreen() {
     if (isLoading) {
         return (
             <SafeAreaView style={CommonStyles.safeArea}>
-                <View style={CommonStyles.loadingContainer}>
-                    <ActivityIndicator size="small" color="gray" />
-                    <Text style={CommonStyles.loadingText}>数据加载中</Text>
-                </View>
+                <LoadingStateView
+                    text="数据加载中"
+                    size={24}
+                    color={Colors.textTertiary}
+                    style={CommonStyles.loadingContainer}
+                    textStyle={CommonStyles.loadingText}
+                />
             </SafeAreaView>
         );
     }

@@ -6,7 +6,6 @@ import {
     StyleSheet,
     TouchableOpacity,
     TextInput,
-    ActivityIndicator,
     Dimensions,
     Alert,
     Modal,
@@ -32,6 +31,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useArticlePage } from '@/features/bff/hooks';
 import { queryKeys } from '@/shared/query/keys';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 import {
     createComment,
     fetchChildComments as fetchChildCommentList,
@@ -512,7 +512,7 @@ export default function ArticleDetailScreen() {
         if (loading && !article) {
             return (
                 <SafeAreaView style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <BouncingDotsIndicator mode="inline" size={28} color={Colors.primary} />
                 </SafeAreaView>
             );
         }

@@ -4,7 +4,6 @@ import {
     Text,
     FlatList,
     StyleSheet,
-    ActivityIndicator,
     Alert,
     TouchableOpacity,
 } from 'react-native';
@@ -13,6 +12,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVehiclesByBrand } from '@/features/catalog/hooks';
 import type { VehicleBrief } from '@/features/catalog/types';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
+import { LoadingStateView } from '@/components/LoadingStateView';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { RemoteImage } from '../../components/RemoteImage';
 
@@ -98,10 +99,13 @@ const BrandVehiclesScreen = () => {
         return (
             <View style={styles.container}>
                 {renderHeader()}
-                <View style={CommonStyles.centerContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
-                    <Text style={CommonStyles.loadingTextSmall}>正在加载车型...</Text>
-                </View>
+                <LoadingStateView
+                    text="正在加载车型..."
+                    size={28}
+                    color={Colors.primary}
+                    style={CommonStyles.centerContainer}
+                    textStyle={CommonStyles.loadingTextSmall}
+                />
             </View>
         );
     }

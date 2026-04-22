@@ -6,7 +6,6 @@ import {
     ScrollView,
     SafeAreaView,
     Platform,
-    ActivityIndicator,
     TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +19,7 @@ import { useAuth } from '../config/auth';
 import { navigateToUserProfile } from '../config/utils';
 import { RemoteImage } from '../components/RemoteImage';
 import { SwipeTabView } from '../components/SwipeTabView';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 
 const TAB_KEYS = ['mutual', 'following', 'followers'] as const;
 type TabKey = typeof TAB_KEYS[number];
@@ -56,7 +56,11 @@ const UserListItem = ({
             activeOpacity={0.7}
         >
             {isLoading ? (
-                <ActivityIndicator size="small" color={item.is_followed ? Colors.textTertiary : Colors.white} />
+                <BouncingDotsIndicator
+                    mode="inline"
+                    size={16}
+                    color={item.is_followed ? Colors.textTertiary : Colors.white}
+                />
             ) : (
                 <Text style={[styles.followBtnText, item.is_followed ? styles.followedBtnText : styles.unfollowedBtnText]}>
                     {item.is_followed ? '已关注' : '关注'}
@@ -84,7 +88,7 @@ const TabPage = ({
     <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
         {loading ? (
             <View style={styles.pageLoadingContainer}>
-                <ActivityIndicator size="small" color={Colors.textTertiary} />
+                <BouncingDotsIndicator mode="inline" size={18} color={Colors.textTertiary} />
             </View>
         ) : items.length === 0 ? (
             <View style={styles.emptyContainer}>

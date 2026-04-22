@@ -8,7 +8,6 @@ import {
     SafeAreaView,
     StyleSheet,
     Alert,
-    ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,6 +33,7 @@ import {
     VISIBILITY_LABELS,
     type VisibilityOption,
 } from '../../components/VisibilityPicker';
+import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 
 const DRAFT_KEY = 'publish_draft';
 
@@ -643,7 +643,7 @@ export default function PublishScreen() {
                         disabled={globalPublishing}
                     >
                         {globalPublishing ? (
-                            <ActivityIndicator size="small" color={Colors.white} />
+                            <BouncingDotsIndicator mode="inline" size={16} color={Colors.white} />
                         ) : (
                             <Text style={styles.publishText}>发布</Text>
                         )}
