@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Animated,
     Alert, Modal, Dimensions, Pressable, NativeSyntheticEvent, NativeScrollEvent,
+    KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView, PinchGestureHandler, PanGestureHandler, PinchGestureHandlerGestureEvent, PanGestureHandlerGestureEvent, State } from 'react-native-gesture-handler';
@@ -711,40 +712,41 @@ export default function ProfileEditScreen() {
             </Modal>
 
             {/* ════════ 文本编辑 ════════ */}
-            <Modal visible={editModalVisible} transparent animationType="fade"
+            <Modal visible={editModalVisible} transparent animationType="slide"
                 onRequestClose={() => setEditModalVisible(false)}>
-                <Pressable style={s.sheetOverlay} onPress={() => setEditModalVisible(false)}>
-                    <Pressable style={[s.editSheet, { paddingBottom: insets.bottom }]}>
-                        <View style={s.wheelSheetHeader}>
-                            <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                                <Text style={s.wheelSheetCancel}>取消</Text>
-                            </TouchableOpacity>
-                            <Text style={s.wheelSheetTitle}>
-                                {editField === 'username' ? '修改昵称' : '修改签名'}
-                            </Text>
-                            <View style={{ width: 40 }} />
-                        </View>
-                        <View style={s.editSheetBody}>
-                            <TextInput
-                                style={[s.editSheetInput, editField === 'signature' && { height: 100, textAlignVertical: 'top' }]}
-                                value={editTempValue}
-                                onChangeText={setEditTempValue}
-                                placeholder={editField === 'username' ? '输入昵称' : '写点什么介绍自己'}
-                                placeholderTextColor={Colors.textTertiary}
-                                autoFocus
-                                maxLength={editField === 'username' ? 20 : 100}
-                                multiline={editField === 'signature'}
-                            />
-                            <Text style={s.editSheetCount}>
-                                {editTempValue.length}/{editField === 'username' ? 20 : 100}
-                            </Text>
-                        </View>
-                        <View style={s.editSheetDivider} />
-                        <TouchableOpacity style={s.editSheetConfirmBtn} onPress={confirmEdit}>
-                            <Text style={s.editSheetConfirmText}>确定</Text>
+                <KeyboardAvoidingView style={{ flex: 1 }}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                    <View style={[s.editFullScreen, { paddingTop: insets.top }]}>
+                        <TouchableOpacity style={s.editCloseBtn} onPress={() => setEditModalVisible(false)}>
+                            <Text style={s.editCloseBtnText}>取消</Text>
                         </TouchableOpacity>
-                    </Pressable>
-                </Pressable>
+                        <Text style={s.editFullTitle}>
+                            {editField === 'username' ? '修改昵称' : '修改签名'}
+                        </Text>
+                        <TextInput
+                            style={[s.editFullInput, editField === 'signature' && { height: 120, textAlignVertical: 'top' }]}
+                            value={editTempValue}
+                            onChangeText={setEditTempValue}
+                            placeholder={editField === 'username' ? '输入昵称' : '写点什么介绍自己'}
+                            placeholderTextColor={Colors.textTertiary}
+                            autoFocus
+                            maxLength={editField === 'username' ? 20 : 100}
+                            multiline={editField === 'signature'}
+                        />
+                        <Text style={s.editFullCount}>
+                            {editTempValue.length}/{editField === 'username' ? 20 : 100}
+                        </Text>
+                        <TouchableOpacity
+                            style={[s.editFullConfirmBtn,
+                                (!editTempValue.trim() || editTempValue.trim() === (editField === 'username' ? username : signature).trim()) && { opacity: 0.5 },
+                            ]}
+                            onPress={confirmEdit}
+                            disabled={!editTempValue.trim() || editTempValue.trim() === (editField === 'username' ? username : signature).trim()}
+                        >
+                            <Text style={s.editFullConfirmText}>确定</Text>
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
             </Modal>
 
             {/* ════════ 日期选择器 ════════ */}
@@ -1106,6 +1108,35 @@ const s = StyleSheet.create({
     editSheetDivider: { height: 6, backgroundColor: '#f2f2f2', marginTop: Spacing.lg },
     editSheetConfirmBtn: { alignItems: 'center', paddingVertical: Spacing.lg },
     editSheetConfirmText: { fontSize: FontSize.lg, color: Colors.primary, fontWeight: '600' },
+
+    // 全屏文本编辑
+    editFullScreen: {
+        flex: 1, backgroundColor: Colors.backgroundWhite, paddingHorizontal: Spacing.xl,
+    },
+    editCloseBtn: {
+        height: 36, justifyContent: 'center',
+        marginTop: Spacing.sm,
+    },
+    editCloseBtnText: {
+        fontSize: FontSize.md, color: Colors.textSecondary,
+    },
+    editFullTitle: {
+        fontSize: FontSize.xxl, fontWeight: 'bold', color: Colors.textPrimary,
+        marginTop: Spacing.xl, marginBottom: Spacing.xl, textAlign: 'center',
+    },
+    editFullInput: {
+        padding: Spacing.md, fontSize: FontSize.md, color: Colors.textPrimary,
+        borderWidth: 1, borderColor: Colors.border, borderRadius: 8,
+        backgroundColor: Colors.backgroundLightGray,
+    },
+    editFullCount: {
+        textAlign: 'right', marginTop: Spacing.sm, fontSize: FontSize.xs, color: Colors.textTertiary,
+    },
+    editFullConfirmBtn: {
+        backgroundColor: Colors.primary, borderRadius: 24, paddingVertical: Spacing.md,
+        alignItems: 'center', marginTop: Spacing.xl,
+    },
+    editFullConfirmText: { color: Colors.white, fontSize: FontSize.lg, fontWeight: '600' },
 
     // 滚轮弹窗（日期 / 地区 / 学校共用）
     wheelSheet: { backgroundColor: Colors.backgroundWhite, borderTopLeftRadius: 16, borderTopRightRadius: 16 },

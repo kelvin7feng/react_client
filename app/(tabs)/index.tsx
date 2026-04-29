@@ -312,17 +312,13 @@ export default function Index() {
     fetchArticles('recommend', 1, false);
   }, [userId]);
 
+  const activeTabInitialized = tabStates[activeTab].initialized;
   useEffect(() => {
-    if (activeTab === 'recommend') return;
-    if (activeTab === 'following' && !tabStates.following.initialized) {
-      lastLoadedPageRef.current.following = 0;
-      fetchArticles('following', 1, false);
-    }
-    if (activeTab === 'nearby' && city && !tabStates.nearby.initialized) {
-      lastLoadedPageRef.current.nearby = 0;
-      fetchArticles('nearby', 1, false);
-    }
-  }, [activeTab, city]);
+    if (activeTabInitialized || isLoadingRef.current[activeTab]) return;
+    if (activeTab === 'nearby' && !city) return;
+    lastLoadedPageRef.current[activeTab] = 0;
+    fetchArticles(activeTab, 1, false);
+  }, [activeTabInitialized, activeTab, city, fetchArticles]);
 
   useEffect(() => {
     if (city && tabStates.nearby.initialized) {

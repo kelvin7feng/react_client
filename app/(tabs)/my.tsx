@@ -180,9 +180,10 @@ export default function MyScreen() {
     );
 
     const handleMyTabChange = useCallback((key: string) => {
-        if (profileH > 0 && currentOffsetRef.current >= profileH) {
+        if (profileH > 0 && currentOffsetRef.current > 0) {
+            const targetY = Math.min(currentOffsetRef.current, profileH);
             setTimeout(() => {
-                tabScrollRefs.current[key]?.scrollTo({ y: profileH, animated: false });
+                tabScrollRefs.current[key]?.scrollTo({ y: targetY, animated: false });
             }, 50);
         }
     }, [profileH]);
