@@ -21,13 +21,14 @@ import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMyHome } from '@/features/bff/hooks';
 import { toggleArticleLike } from '@/features/community/api';
 import { queryKeys } from '@/shared/query/keys';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
-import { EventBus, Events, LikeChangedPayload } from '../../config/events';
+import { EventBus, Events, LikeChangedPayload, FavoriteChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { formatCount, navigateToUserProfile, navigateToArticle } from '../../config/utils';
 import { RemoteImage } from '../../components/RemoteImage';
@@ -81,10 +82,10 @@ const GenderIcon = ({ gender }: { gender: number }) => {
     return null;
 };
 
-const StatItem = ({ count, label, onPress }: { count: number; label: string; onPress?: () => void }) => (
+const StatItem = ({ count, label, onPress, light }: { count: number; label: string; onPress?: () => void; light?: boolean }) => (
     <TouchableOpacity style={styles.statItem} onPress={onPress} activeOpacity={onPress ? 0.7 : 1}>
-        <Text style={styles.statCount}>{formatCount(count)}</Text>
-        <Text style={styles.statLabel}>{label}</Text>
+        <Text style={[styles.statCount, light && styles.statCountOnBg]}>{formatCount(count)}</Text>
+        <Text style={[styles.statLabel, light && styles.statLabelOnBg]}>{label}</Text>
     </TouchableOpacity>
 );
 
@@ -135,6 +136,7 @@ export default function MyScreen() {
         setMyViewed(data.viewed || []);
     }, [data]);
 
+    const [topBarH, setTopBarH] = useState(0);
     const [tabBarH, setTabBarH] = useState(0);
     const [profileH, setProfileH] = useState(0);
     const [drawerVisible, setDrawerVisible] = useState(false);
@@ -143,11 +145,27 @@ export default function MyScreen() {
     const tabScrollRefs = useRef<Record<string, ScrollView | null>>({});
 
     const safeProfileH = Math.max(profileH, 1);
-    const totalHeaderH = profileH + tabBarH;
+    const totalHeaderH = topBarH + profileH + tabBarH;
+
+    useEffect(() => {
+        if (data?.user?.bg_image) ExpoImage.prefetch(data.user.bg_image);
+    }, [data?.user?.bg_image]);
 
     const headerTranslateY = scrollY.interpolate({
         inputRange: [0, safeProfileH],
         outputRange: [0, -safeProfileH],
+        extrapolate: 'clamp',
+    });
+
+    const navAvatarOpacity = scrollY.interpolate({
+        inputRange: [safeProfileH * 0.5, safeProfileH * 0.85],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    const profileContentOpacity = scrollY.interpolate({
+        inputRange: [0, safeProfileH * 0.6],
+        outputRange: [1, 0],
         extrapolate: 'clamp',
     });
 
@@ -209,6 +227,17 @@ export default function MyScreen() {
         });
         return off;
     }, []);
+
+    useEffect(() => {
+        const off = EventBus.on(Events.ARTICLE_FAVORITE_CHANGED, ({ articleId, favorited }: FavoriteChangedPayload) => {
+            if (!favorited) {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setMyFavorites(prev => prev.filter(item => item.id !== articleId));
+            }
+            queryClient.invalidateQueries({ queryKey: ['myHome'] });
+        });
+        return off;
+    }, [queryClient]);
 
     useEffect(() => {
         const off = EventBus.on(Events.ARTICLE_DELETED, ({ articleId }: { articleId: number }) => {
@@ -286,40 +315,53 @@ export default function MyScreen() {
         );
     };
 
+    const hasBgImage = !!userData.bg_image;
+
     const profileSection = (
-        <LinearGradient
-            colors={['#ededed', '#e8e8e8', '#f0f0f0']}
-            style={styles.headerGradient}
+        <View
+            style={styles.profileSectionWrap}
             onLayout={(e) => setProfileH(e.nativeEvent.layout.height)}
         >
-            <TouchableOpacity style={styles.profileHeader} activeOpacity={0.7}
-                onPress={() => router.push('/profile-edit' as any)}>
-                <RemoteImage
-                    uri={userData.avatar || 'https://picsum.photos/200/200?random=1'}
-                    style={styles.avatar}
-                    contentFit="cover"
+            {!hasBgImage && (
+                <LinearGradient
+                    colors={['#ededed', '#e8e8e8', '#f0f0f0']}
+                    style={StyleSheet.absoluteFillObject}
                 />
-                <View style={styles.profileInfo}>
-                    <View style={styles.nameRow}>
-                        <GenderIcon gender={userData.gender ?? 0} />
-                        <Text style={styles.name}>{userData.username || '未知用户'}</Text>
-                    </View>
-                    <Text style={styles.signature} numberOfLines={2}>
-                        {userData.signature || '暂无个性签名'}
-                    </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
-            </TouchableOpacity>
+            )}
 
-            <View style={styles.statsRow}>
-                <StatItem count={userStats.following_count} label="关注"
-                    onPress={() => router.push({ pathname: '/follow-list', params: { tab: 'following' } } as any)} />
-                <StatItem count={userStats.followers_count} label="粉丝"
-                    onPress={() => router.push({ pathname: '/follow-list', params: { tab: 'followers' } } as any)} />
-                <StatItem count={userStats.likes_received} label="获赞" />
-                <StatItem count={userStats.favorites_received} label="收藏" />
-            </View>
-        </LinearGradient>
+            <Animated.View style={{ opacity: profileContentOpacity }}>
+                <TouchableOpacity style={styles.profileHeader} activeOpacity={0.7}
+                    onPress={() => router.push('/profile-edit' as any)}>
+                    <RemoteImage
+                        uri={userData.avatar || 'https://picsum.photos/200/200?random=1'}
+                        style={styles.avatar}
+                        contentFit="cover"
+                    />
+                    <View style={styles.profileInfo}>
+                        <View style={styles.nameRow}>
+                            <GenderIcon gender={userData.gender ?? 0} />
+                            <Text style={[styles.name, hasBgImage && styles.textOnBg]}>
+                                {userData.username || '未知用户'}
+                            </Text>
+                        </View>
+                        <Text style={[styles.signature, hasBgImage && styles.subTextOnBg]} numberOfLines={2}>
+                            {userData.signature || '暂无个性签名'}
+                        </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18}
+                        color={hasBgImage ? 'rgba(255,255,255,0.7)' : Colors.textTertiary} />
+                </TouchableOpacity>
+
+                <View style={styles.statsRow}>
+                    <StatItem count={userStats.following_count} label="关注" light={hasBgImage}
+                        onPress={() => router.push({ pathname: '/follow-list', params: { tab: 'following' } } as any)} />
+                    <StatItem count={userStats.followers_count} label="粉丝" light={hasBgImage}
+                        onPress={() => router.push({ pathname: '/follow-list', params: { tab: 'followers' } } as any)} />
+                    <StatItem count={userStats.likes_received} label="获赞" light={hasBgImage} />
+                    <StatItem count={userStats.favorites_received} label="收藏" light={hasBgImage} />
+                </View>
+            </Animated.View>
+        </View>
     );
 
     const tabScrollProps = {
@@ -331,30 +373,37 @@ export default function MyScreen() {
     };
 
     return (
-        <View style={styles.safeArea}>
-            <View style={[styles.topBar, { paddingTop: insets.top + Spacing.sm }]}>
-                <TouchableOpacity style={styles.topBarBtn} onPress={() => {
-                    if (!isLoggedIn) { router.push('/login'); return; }
-                    setDrawerVisible(true);
-                }}>
-                    <Feather name="menu" size={24} color={Colors.textPrimary} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.topBarBtn} onPress={() => router.push('/scanner')}>
-                    <MaterialCommunityIcons name="line-scan" size={22} color={Colors.textPrimary} />
-                </TouchableOpacity>
-            </View>
+        <View style={[styles.safeArea, hasBgImage && styles.safeAreaWithBg]}>
             <SettingsDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
 
             <SwipeTabView
                 tabs={TABS}
                 onTabChange={handleMyTabChange}
+                pagerBackgroundColor={Colors.backgroundWhite}
                 renderLayout={(tabBar, pager) => (
                     <View style={styles.pagerContainer}>
                         <Animated.View style={[styles.collapsibleHeader, {
                             transform: [{ translateY: headerTranslateY }],
                         }]}>
+                            {hasBgImage && (
+                                <>
+                                    <RemoteImage
+                                        uri={userData.bg_image!}
+                                        style={StyleSheet.absoluteFillObject}
+                                        contentFit="cover"
+                                        cachePolicy="memory-disk"
+                                        transition={200}
+                                    />
+                                    <View style={styles.bgOverlay} />
+                                    <LinearGradient
+                                        colors={['transparent', 'rgba(0,0,0,0.8)']}
+                                        style={styles.bgBottomFade}
+                                    />
+                                </>
+                            )}
+                            <View style={{ height: topBarH }} />
                             {profileSection}
-                            <View style={styles.tabBarMask}
+                            <View style={[styles.tabBarMask, hasBgImage && styles.tabBarMaskTransparent]}
                                 onLayout={(e) => setTabBarH(e.nativeEvent.layout.height)}>
                                 <View style={styles.tabBarWrapper}>
                                     {tabBar}
@@ -394,13 +443,46 @@ export default function MyScreen() {
                     {renderWaterfall(myViewed, (item) => handleListLike(item, setMyViewed), '看过')}
                 </ScrollView>
             </SwipeTabView>
+
+            <View
+                style={[styles.topBar, { paddingTop: insets.top + Spacing.sm }, hasBgImage && styles.topBarWithBg]}
+                onLayout={(e) => setTopBarH(e.nativeEvent.layout.height)}
+            >
+                <TouchableOpacity style={styles.topBarBtn} onPress={() => {
+                    if (!isLoggedIn) { router.push('/login'); return; }
+                    setDrawerVisible(true);
+                }}>
+                    <Feather name="menu" size={24} color={hasBgImage ? Colors.white : Colors.textPrimary} />
+                </TouchableOpacity>
+
+                <Animated.View style={[styles.navAvatarWrap, { opacity: navAvatarOpacity }]}>
+                    <ExpoImage
+                        source={{ uri: userData.avatar || 'https://picsum.photos/200/200?random=1' }}
+                        style={styles.navAvatar}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                    />
+                    <Text style={[styles.navUsername, hasBgImage && { color: Colors.white }]} numberOfLines={1}>
+                        {userData.username || ''}
+                    </Text>
+                </Animated.View>
+
+                <TouchableOpacity style={styles.topBarBtn} onPress={() => router.push('/scanner')}>
+                    <MaterialCommunityIcons name="line-scan" size={22} color={hasBgImage ? Colors.white : Colors.textPrimary} />
+                </TouchableOpacity>
+            </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#ededed' },
+    safeAreaWithBg: { backgroundColor: '#2c2c2e' },
     topBar: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -409,12 +491,31 @@ const styles = StyleSheet.create({
         backgroundColor: '#ededed',
         zIndex: 20,
     },
+    topBarWithBg: { backgroundColor: 'transparent' },
     topBarBtn: {
         width: 36,
         height: 36,
         borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    navAvatarWrap: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    navAvatar: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        borderWidth: 1.5,
+        borderColor: Colors.white,
+    },
+    navUsername: {
+        marginLeft: Spacing.sm,
+        fontSize: FontSize.sm,
+        fontWeight: '600',
+        color: Colors.textPrimary,
+        maxWidth: 100,
     },
     pagerContainer: { flex: 1 },
     collapsibleHeader: {
@@ -424,7 +525,11 @@ const styles = StyleSheet.create({
         right: 0,
         zIndex: 10,
     },
-    headerGradient: { paddingBottom: Spacing.lg },
+    profileSectionWrap: { paddingBottom: Spacing.lg, overflow: 'hidden' },
+    bgOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+    bgBottomFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '35%' },
+    textOnBg: { color: Colors.white },
+    subTextOnBg: { color: 'rgba(255,255,255,0.8)' },
     profileHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.lg, paddingHorizontal: Spacing.xl },
     avatar: { width: 70, height: 70, borderRadius: 35, borderWidth: 2, borderColor: Colors.white, ...Shadows.large },
     profileInfo: { flex: 1, marginLeft: Spacing.lg, justifyContent: 'center' },
@@ -435,10 +540,13 @@ const styles = StyleSheet.create({
     statsRow: { flexDirection: 'row', paddingHorizontal: Spacing.xl, paddingTop: Spacing.sm },
     statItem: { marginRight: Spacing.xxl, alignItems: 'center' },
     statCount: { fontSize: FontSize.lg, fontWeight: 'bold', color: Colors.textPrimary },
+    statCountOnBg: { color: Colors.white },
     statLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+    statLabelOnBg: { color: 'rgba(255,255,255,0.8)' },
     tabBarMask: {
         backgroundColor: '#ededed',
     },
+    tabBarMaskTransparent: { backgroundColor: 'transparent' },
     tabBarWrapper: {
         backgroundColor: Colors.backgroundWhite,
         borderTopLeftRadius: 16,

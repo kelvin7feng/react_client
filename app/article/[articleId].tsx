@@ -338,6 +338,14 @@ export default function ArticleDetailScreen() {
         setFavOverride({ favorited: newFavorited, count: newCount });
         try {
             await toggleArticleFavorite(Number(articleId));
+            queryClient.setQueryData(
+                queryKeys.articlePage(numericArticleId, userId),
+                (old: any) => {
+                    if (!old?.article) return old;
+                    return { ...old, article: { ...old.article, favorited: newFavorited, favorite_count: newCount } };
+                },
+            );
+            queryClient.invalidateQueries({ queryKey: ['myHome'] });
             EventBus.emit(Events.ARTICLE_FAVORITE_CHANGED, { articleId: Number(articleId), favorited: newFavorited });
         } catch {
             setFavOverride({ favorited: prevFavorited, count: prevCount });

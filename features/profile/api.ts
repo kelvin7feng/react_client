@@ -9,6 +9,11 @@ export type BasicUserProfile = {
   signature?: string;
   birthday?: string;
   gender?: number;
+  region?: string;
+  occupation?: string;
+  school_name?: string;
+  school_year?: number;
+  bg_image?: string;
 };
 
 type UpdateProfileInput = {
@@ -16,7 +21,16 @@ type UpdateProfileInput = {
   signature: string;
   gender: number;
   birthday: string;
+  region: string;
+  occupation: string;
+  schoolName: string;
+  schoolYear: number;
   avatarFile?: {
+    uri: string;
+    name?: string;
+    type?: string;
+  } | null;
+  bgImageFile?: {
     uri: string;
     name?: string;
     type?: string;
@@ -43,6 +57,10 @@ export function updateProfile(input: UpdateProfileInput) {
   formData.append('signature', input.signature.trim());
   formData.append('gender', String(input.gender));
   formData.append('birthday', input.birthday);
+  formData.append('region', input.region);
+  formData.append('occupation', input.occupation);
+  formData.append('school_name', input.schoolName);
+  formData.append('school_year', String(input.schoolYear || 0));
 
   if (input.avatarFile) {
     formData.append('avatar', {
@@ -52,7 +70,15 @@ export function updateProfile(input: UpdateProfileInput) {
     } as any);
   }
 
-  return unwrapData<{ avatar?: string }>(
+  if (input.bgImageFile) {
+    formData.append('bg_image', {
+      uri: input.bgImageFile.uri,
+      name: input.bgImageFile.name || 'bg.jpg',
+      type: input.bgImageFile.type || 'image/jpeg',
+    } as any);
+  }
+
+  return unwrapData<{ avatar?: string; bg_image?: string }>(
     requestJson(API_ENDPOINTS.UPDATE_USER_INFO, {
       method: 'PUT',
       body: formData,

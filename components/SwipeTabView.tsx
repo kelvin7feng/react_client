@@ -31,6 +31,7 @@ interface SwipeTabViewProps {
     renderLayout?: (tabBar: React.ReactNode, pager: React.ReactNode) => React.ReactNode;
     tabBarStyle?: ViewStyle;
     tabFontSize?: number;
+    pagerBackgroundColor?: string;
     children: React.ReactNode;
 }
 
@@ -42,6 +43,7 @@ export function SwipeTabView({
     renderLayout,
     tabBarStyle,
     tabFontSize = FontSize.md,
+    pagerBackgroundColor,
     children,
 }: SwipeTabViewProps) {
     const pagerRef = useRef<ScrollView>(null);
@@ -182,10 +184,10 @@ export function SwipeTabView({
             scrollEventThrottle={16}
             onScroll={onPagerScroll}
             contentOffset={{ x: initialIndex * SCREEN_WIDTH, y: 0 }}
-            style={styles.pager}
+            style={[styles.pager, pagerBackgroundColor ? { backgroundColor: pagerBackgroundColor } : undefined]}
         >
             {childArray.map((child, idx) => (
-                <View key={tabs[idx]?.key ?? idx} style={styles.page}>
+                <View key={tabs[idx]?.key ?? idx} style={[styles.page, pagerBackgroundColor ? { backgroundColor: pagerBackgroundColor } : undefined]}>
                     {child}
                 </View>
             ))}

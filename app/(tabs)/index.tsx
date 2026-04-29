@@ -98,7 +98,7 @@ const TabContent = ({
 
         {state.loadingMore && (
           <View style={CommonStyles.loadingMoreContainer}>
-            <BouncingDotsIndicator mode="inline" size={18} color={Colors.primaryBlue} />
+            <BouncingDotsIndicator mode="inline" size={18} color="#999" />
             <Text style={CommonStyles.loadingMoreText}>加载更多...</Text>
           </View>
         )}
@@ -489,6 +489,7 @@ export default function Index() {
         initialIndex={1}
         tabFontSize={FontSize.md + 2}
         onTabChange={handleTabChange}
+        pagerBackgroundColor={Colors.background}
         renderHeader={(tabBar) => (
           <View style={styles.header}>
             <TouchableOpacity style={styles.headerSide} onPress={() => {

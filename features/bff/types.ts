@@ -5,6 +5,7 @@ export type BffUserSummary = {
   username: string;
   email?: string;
   avatar?: string;
+  bg_image?: string;
   signature?: string;
   birthday?: string;
   gender?: number;
