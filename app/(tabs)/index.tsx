@@ -8,7 +8,9 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Dimensions,
+  Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
@@ -17,7 +19,7 @@ import * as Location from 'expo-location';
 import { useQueryClient } from '@tanstack/react-query';
 import { fetchFollowingArticles, fetchNearbyArticles, fetchRecommendations, toggleArticleLike } from '@/features/community/api';
 import { queryKeys } from '@/shared/query/keys';
-import { CommonStyles, Colors, Spacing, FontSize } from '../../config/styles';
+import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { EventBus, Events, LikeChangedPayload } from '../../config/events';
 import { useAuth } from '../../config/auth';
 import { navigateToUserProfile, navigateToArticle } from '../../config/utils';
@@ -29,6 +31,127 @@ import { LoadingStateView } from '@/components/LoadingStateView';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const REFRESH_TRIGGER_DISTANCE = 72;
+const SKEL_BONE = '#e8e8e8';
+
+const SHIMMER_W = SCREEN_WIDTH * 2;
+
+const HomeScreenSkeleton = () => {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 2500,
+        useNativeDriver: true,
+      }),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, []);
+
+  const translateX = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-SHIMMER_W, SCREEN_WIDTH],
+  });
+
+  const Bone = ({ w, h, r = 6, style }: { w: number | string; h?: number; r?: number; style?: any }) => (
+    <View style={[{ width: w, height: h, borderRadius: r, backgroundColor: SKEL_BONE, overflow: 'hidden' }, style]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}>
+        <LinearGradient
+          colors={[SKEL_BONE, '#f5f5f5', SKEL_BONE]}
+          locations={[0.08, 0.18, 0.33]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={{ flex: 1, width: SHIMMER_W }}
+        />
+      </Animated.View>
+    </View>
+  );
+
+  const cardSkeleton = (titleW = '85%') => (
+    <View style={skelStyles.card}>
+      <Bone w="100%" r={0} style={{ aspectRatio: 3 / 4 }} />
+      <View style={skelStyles.cardBody}>
+        <Bone w={titleW} h={12} r={4} />
+        <View style={skelStyles.cardFooter}>
+          <Bone w={50} h={10} r={4} />
+          <Bone w={30} h={10} r={4} />
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={skelStyles.root}>
+      <View style={skelStyles.header}>
+        <Bone w={24} h={24} r={4} />
+        <View style={skelStyles.headerTabs}>
+          <Bone w={36} h={20} r={10} />
+          <Bone w={36} h={20} r={10} />
+          <Bone w={36} h={20} r={10} />
+        </View>
+        <Bone w={24} h={24} r={4} />
+      </View>
+      <View style={skelStyles.grid}>
+        <View style={skelStyles.gridCol}>
+          {cardSkeleton('70%')}
+          {cardSkeleton('55%')}
+        </View>
+        <View style={skelStyles.gridCol}>
+          {cardSkeleton('60%')}
+          {cardSkeleton('80%')}
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const skelStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    paddingTop: 50,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 60,
+    paddingHorizontal: Spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  headerTabs: {
+    flexDirection: 'row',
+    gap: Spacing.xl,
+  },
+  grid: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.xs,
+    marginTop: 5,
+  },
+  gridCol: {
+    flex: 1,
+    marginHorizontal: 3,
+  },
+  card: {
+    backgroundColor: Colors.backgroundWhite,
+    borderRadius: Spacing.sm - 2,
+    marginBottom: Spacing.sm,
+    overflow: 'hidden',
+    ...Shadows.medium,
+  },
+  cardBody: {
+    padding: Spacing.sm,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Spacing.sm - 2,
+  },
+});
 
 type TabKey = 'following' | 'recommend' | 'nearby';
 
@@ -123,11 +246,15 @@ const LoadingView = () => (
   />
 );
 
+const isNetworkErrorMsg = (msg: string) => /network.?request.?failed/i.test(msg);
+
 const ErrorView = ({ error, onRetry }: { error: string; onRetry: () => void }) => (
   <View style={CommonStyles.errorContainer}>
     <Ionicons name="alert-circle" size={50} color={Colors.error} />
     <Text style={CommonStyles.errorText}>加载失败</Text>
-    <Text style={CommonStyles.errorSubText}>{error}</Text>
+    {!isNetworkErrorMsg(error) && (
+      <Text style={CommonStyles.errorSubText}>{error}</Text>
+    )}
     <TouchableOpacity style={CommonStyles.retryButton} onPress={onRetry}>
       <Text style={CommonStyles.retryButtonText}>点击重试</Text>
     </TouchableOpacity>
@@ -171,6 +298,8 @@ export default function Index() {
   const [city, setCity] = useState<string>('');
   const [cityDisplay, setCityDisplay] = useState<string>('');
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const skeletonFade = useRef(new Animated.Value(1)).current;
+  const [skeletonDismissed, setSkeletonDismissed] = useState(false);
 
   const [tabStates, setTabStates] = useState<Record<TabKey, TabState>>({
     following: { ...initialTabState },
@@ -384,6 +513,16 @@ export default function Index() {
     return off;
   }, []);
 
+  useEffect(() => {
+    if (tabStates.recommend.initialized && !skeletonDismissed) {
+      Animated.timing(skeletonFade, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => setSkeletonDismissed(true));
+    }
+  }, [tabStates.recommend.initialized, skeletonDismissed]);
+
   const handleTabChange = useCallback((key: string) => {
     setActiveTab(key as TabKey);
   }, []);
@@ -523,6 +662,12 @@ export default function Index() {
           />
         ))}
       </SwipeTabView>
+
+      {!skeletonDismissed && (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: skeletonFade, zIndex: 30 }]}>
+          <HomeScreenSkeleton />
+        </Animated.View>
+      )}
     </View>
   );
 }

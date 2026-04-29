@@ -38,7 +38,8 @@ import { SettingsDrawer } from '../../components/SettingsDrawer';
 import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 import { LoadingStateView } from '@/components/LoadingStateView';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const SHIMMER_W = SCREEN_WIDTH * 2;
 
 const TAB_ICON_SIZE = 14;
 const TABS = [
@@ -110,6 +111,182 @@ const CommentListItem = ({ item, onPress }: { item: any; onPress: (id: number) =
     </TouchableOpacity>
 );
 
+const SKEL_BONE = '#e8e8e8';
+
+const MyScreenSkeleton = ({ topInset }: { topInset: number }) => {
+    const anim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        const animation = Animated.loop(
+            Animated.timing(anim, {
+                toValue: 1,
+                duration: 2500,
+                useNativeDriver: true,
+            }),
+        );
+        animation.start();
+        return () => animation.stop();
+    }, []);
+
+    const translateX = anim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [-SHIMMER_W, SCREEN_WIDTH],
+    });
+
+    const shimmerOverlay = (
+        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}>
+            <LinearGradient
+                colors={[SKEL_BONE, '#f5f5f5', SKEL_BONE]}
+                locations={[0.08, 0.18, 0.33]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={{ flex: 1, width: SHIMMER_W }}
+            />
+        </Animated.View>
+    );
+
+    const bone = (w: number | string, h: number, r = 6, extra?: object) => (
+        <View style={[{ width: w, height: h, backgroundColor: SKEL_BONE, borderRadius: r, overflow: 'hidden' }, extra]}>
+            {shimmerOverlay}
+        </View>
+    );
+
+    const cardSkeleton = (titleW = '85%') => (
+        <View style={skelStyles.card}>
+            <View style={[skelStyles.cardImage, { overflow: 'hidden' }]}>
+                {shimmerOverlay}
+            </View>
+            <View style={skelStyles.cardBody}>
+                {bone(titleW, 12, 4)}
+                <View style={skelStyles.cardFooter}>
+                    {bone(50, 10, 4)}
+                    {bone(30, 10, 4)}
+                </View>
+            </View>
+        </View>
+    );
+
+    return (
+        <View style={skelStyles.root}>
+            {/* topBar: paddingTop + 36px btn + paddingBottom */}
+            <View style={[skelStyles.topBar, { paddingTop: topInset + Spacing.sm }]}>
+                {bone(36, 36, 18)}
+                {bone(36, 36, 18)}
+            </View>
+            {/* profileSectionWrap: profileHeader + statsRow + paddingBottom */}
+            <View style={skelStyles.profileWrap}>
+                <View style={skelStyles.profileHeader}>
+                    {bone(70, 70, 35)}
+                    <View style={skelStyles.profileText}>
+                        {bone(110, 18, 9, { marginBottom: Spacing.sm })}
+                        {bone(160, 13)}
+                    </View>
+                </View>
+                <View style={skelStyles.statsRow}>
+                    {[0, 1, 2, 3].map(i => (
+                        <View key={i} style={skelStyles.statItem}>
+                            {bone(30, 16, 4, { marginBottom: 2 })}
+                            {bone(22, 11, 4)}
+                        </View>
+                    ))}
+                </View>
+            </View>
+            {/* tabBar + cards 白色圆角区域 */}
+            <View style={skelStyles.tabBarMask}>
+                <View style={skelStyles.contentArea}>
+                    <View style={skelStyles.tabBarPlaceholder}>
+                        {bone('75%', 20, 10)}
+                    </View>
+                    <View style={skelStyles.grid}>
+                        <View style={skelStyles.gridCol}>
+                            {cardSkeleton('70%')}
+                            {cardSkeleton('55%')}
+                        </View>
+                        <View style={skelStyles.gridCol}>
+                            {cardSkeleton('60%')}
+                            {cardSkeleton('80%')}
+                        </View>
+                    </View>
+                </View>
+            </View>
+        </View>
+    );
+};
+
+const skelStyles = StyleSheet.create({
+    root: { flex: 1, backgroundColor: '#ededed' },
+    topBar: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: Spacing.lg,
+        paddingBottom: Spacing.md + 2,
+    },
+    profileWrap: {
+        paddingBottom: Spacing.lg,
+    },
+    profileHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: Spacing.lg,
+        paddingHorizontal: Spacing.xl,
+    },
+    profileText: { flex: 1, marginLeft: Spacing.lg },
+    statsRow: {
+        flexDirection: 'row',
+        paddingHorizontal: Spacing.xl,
+        paddingTop: Spacing.sm,
+        gap: Spacing.xxl,
+    },
+    statItem: { alignItems: 'center' },
+    tabBarMask: {
+        flex: 1,
+        backgroundColor: '#ededed',
+    },
+    contentArea: {
+        flex: 1,
+        backgroundColor: Colors.backgroundWhite,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+    },
+    tabBarPlaceholder: {
+        alignItems: 'center',
+        paddingTop: Spacing.md + 2,
+        paddingBottom: Spacing.md,
+    },
+    grid: {
+        flex: 1,
+        flexDirection: 'row',
+        paddingHorizontal: Spacing.xs,
+        marginTop: 5,
+    },
+    gridCol: {
+        flex: 1,
+        marginHorizontal: 3,
+    },
+    card: {
+        backgroundColor: Colors.backgroundWhite,
+        borderRadius: Spacing.sm - 2,
+        marginBottom: Spacing.sm,
+        overflow: 'hidden',
+        ...Shadows.medium,
+    },
+    cardImage: {
+        width: '100%',
+        aspectRatio: 3 / 4,
+        backgroundColor: SKEL_BONE,
+    },
+    cardBody: {
+        padding: Spacing.sm,
+    },
+    cardFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: Spacing.sm - 2,
+    },
+});
+
 export default function MyScreen() {
     const router = useRouter();
     const { userId, isLoggedIn } = useAuth();
@@ -143,9 +320,16 @@ export default function MyScreen() {
     const scrollY = useRef(new Animated.Value(0)).current;
     const currentOffsetRef = useRef(0);
     const tabScrollRefs = useRef<Record<string, ScrollView | null>>({});
+    const activeTabKeyRef = useRef(TABS[0].key);
+    const syncTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+    const skeletonFade = useRef(new Animated.Value(1)).current;
+    const [skeletonDismissed, setSkeletonDismissed] = useState(false);
 
     const safeProfileH = Math.max(profileH, 1);
     const totalHeaderH = topBarH + profileH + tabBarH;
+    const headerMeasured = topBarH > 0 && profileH > 0 && tabBarH > 0;
+    const showContent = !isLoading && !!userData;
+    const contentReady = showContent && headerMeasured;
 
     useEffect(() => {
         if (data?.user?.bg_image) ExpoImage.prefetch(data.user.bg_image);
@@ -169,23 +353,40 @@ export default function MyScreen() {
         extrapolate: 'clamp',
     });
 
-    const scrollHandler = Animated.event(
-        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-        {
-            useNativeDriver: false,
-            listener: (e: any) => {
-                currentOffsetRef.current = e.nativeEvent.contentOffset.y;
-            },
-        },
-    );
+    const scrollHandlersRef = useRef<Record<string, (e: any) => void>>({});
+    const getScrollHandler = (tabKey: string) => {
+        if (!scrollHandlersRef.current[tabKey]) {
+            scrollHandlersRef.current[tabKey] = (e: any) => {
+                const y = e.nativeEvent.contentOffset.y;
+                if (tabKey === activeTabKeyRef.current) {
+                    scrollY.setValue(y);
+                    currentOffsetRef.current = y;
+                }
+            };
+        }
+        return scrollHandlersRef.current[tabKey];
+    };
 
     const handleMyTabChange = useCallback((key: string) => {
-        if (profileH > 0 && currentOffsetRef.current > 0) {
-            const targetY = Math.min(currentOffsetRef.current, profileH);
-            setTimeout(() => {
-                tabScrollRefs.current[key]?.scrollTo({ y: targetY, animated: false });
-            }, 50);
-        }
+        syncTimersRef.current.forEach(clearTimeout);
+        syncTimersRef.current = [];
+
+        activeTabKeyRef.current = key;
+
+        if (profileH <= 0) return;
+
+        const targetY = Math.min(Math.max(currentOffsetRef.current, 0), profileH);
+        if (targetY <= 0) return;
+
+        const doSync = () => {
+            tabScrollRefs.current[key]?.scrollTo({ y: targetY, animated: false });
+        };
+
+        doSync();
+        syncTimersRef.current.push(
+            setTimeout(doSync, 100),
+            setTimeout(doSync, 450),
+        );
     }, [profileH]);
 
     useEffect(() => {
@@ -254,6 +455,16 @@ export default function MyScreen() {
         return off;
     }, [queryClient, userId]);
 
+    useEffect(() => {
+        if (contentReady && !skeletonDismissed) {
+            Animated.timing(skeletonFade, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }).start(() => setSkeletonDismissed(true));
+        }
+    }, [contentReady, skeletonDismissed]);
+
     const handleAuthorPress = useCallback((authorId: number) => {
         navigateToUserProfile(router, authorId, userId ?? null);
     }, [router, userId]);
@@ -273,21 +484,7 @@ export default function MyScreen() {
         );
     }
 
-    if (isLoading) {
-        return (
-            <SafeAreaView style={CommonStyles.safeArea}>
-                <LoadingStateView
-                    text="数据加载中"
-                    size={24}
-                    color={Colors.textTertiary}
-                    style={CommonStyles.loadingContainer}
-                    textStyle={CommonStyles.loadingText}
-                />
-            </SafeAreaView>
-        );
-    }
-
-    if (queryError || !userData) {
+    if (!isLoading && (queryError || !userData)) {
         return (
             <SafeAreaView style={CommonStyles.safeArea}>
                 <View style={CommonStyles.errorContainer}>
@@ -316,9 +513,9 @@ export default function MyScreen() {
         );
     };
 
-    const hasBgImage = !!userData.bg_image;
+    const hasBgImage = !!userData?.bg_image;
 
-    const profileSection = (
+    const profileSection = userData ? (
         <View
             style={styles.profileSectionWrap}
             onLayout={(e) => setProfileH(e.nativeEvent.layout.height)}
@@ -363,63 +560,64 @@ export default function MyScreen() {
                 </View>
             </Animated.View>
         </View>
-    );
+    ) : null;
 
-    const tabScrollProps = {
+    const baseTabScrollStyle = {
         style: styles.tabPage,
         contentContainerStyle: { paddingTop: totalHeaderH, minHeight: totalHeaderH + SCREEN_HEIGHT },
         showsVerticalScrollIndicator: false,
-        onScroll: scrollHandler,
         scrollEventThrottle: 16,
     };
 
     return (
-        <View style={[styles.safeArea, hasBgImage && styles.safeAreaWithBg]}>
-            <SettingsDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+        <View style={[styles.safeArea, hasBgImage && contentReady && styles.safeAreaWithBg]}>
+            {showContent && (
+                <>
+                    <SettingsDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
 
-            <SwipeTabView
-                tabs={TABS}
-                onTabChange={handleMyTabChange}
-                pagerBackgroundColor={Colors.backgroundWhite}
-                renderLayout={(tabBar, pager) => (
-                    <View style={styles.pagerContainer}>
-                        <Animated.View style={[styles.collapsibleHeader, {
-                            transform: [{ translateY: headerTranslateY }],
-                        }]}>
-                            {hasBgImage && (
-                                <>
-                                    <RemoteImage
-                                        uri={userData.bg_image!}
-                                        style={StyleSheet.absoluteFillObject}
-                                        contentFit="cover"
-                                        cachePolicy="memory-disk"
-                                        transition={200}
-                                    />
-                                    <View style={styles.bgOverlay} />
-                                    <LinearGradient
-                                        colors={['transparent', 'rgba(0,0,0,0.8)']}
-                                        style={styles.bgBottomFade}
-                                    />
-                                </>
-                            )}
-                            <View style={{ height: topBarH }} />
-                            {profileSection}
-                            <View style={[styles.tabBarMask, hasBgImage && styles.tabBarMaskTransparent]}
-                                onLayout={(e) => setTabBarH(e.nativeEvent.layout.height)}>
-                                <View style={styles.tabBarWrapper}>
-                                    {tabBar}
-                                </View>
+                    <SwipeTabView
+                        tabs={TABS}
+                        onTabChange={handleMyTabChange}
+                        pagerBackgroundColor={Colors.backgroundWhite}
+                        renderLayout={(tabBar, pager) => (
+                            <View style={styles.pagerContainer}>
+                                <Animated.View style={[styles.collapsibleHeader, {
+                                    transform: [{ translateY: headerTranslateY }],
+                                }]}>
+                                    {hasBgImage && (
+                                        <>
+                                            <RemoteImage
+                                                uri={userData!.bg_image!}
+                                                style={StyleSheet.absoluteFillObject}
+                                                contentFit="cover"
+                                                cachePolicy="memory-disk"
+                                                transition={200}
+                                            />
+                                            <View style={styles.bgOverlay} />
+                                            <LinearGradient
+                                                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                                                style={styles.bgBottomFade}
+                                            />
+                                        </>
+                                    )}
+                                    <View style={{ height: topBarH }} />
+                                    {profileSection}
+                                    <View style={[styles.tabBarMask, hasBgImage && styles.tabBarMaskTransparent]}
+                                        onLayout={(e) => setTabBarH(e.nativeEvent.layout.height)}>
+                                        <View style={styles.tabBarWrapper}>
+                                            {tabBar}
+                                        </View>
+                                    </View>
+                                </Animated.View>
+                                {pager}
                             </View>
-                        </Animated.View>
-                        {pager}
-                    </View>
-                )}
-            >
-                <ScrollView ref={(r) => { tabScrollRefs.current['notes'] = r; }} {...tabScrollProps}>
+                        )}
+                    >
+                <ScrollView ref={(r) => { tabScrollRefs.current['notes'] = r; }} {...baseTabScrollStyle} onScroll={getScrollHandler('notes')}>
                     {renderWaterfall(myNotes, handleNoteLike, '笔记')}
                 </ScrollView>
 
-                <ScrollView ref={(r) => { tabScrollRefs.current['comments'] = r; }} {...tabScrollProps}>
+                <ScrollView ref={(r) => { tabScrollRefs.current['comments'] = r; }} {...baseTabScrollStyle} onScroll={getScrollHandler('comments')}>
                     {myCommentsList.length === 0 ? (
                         <EmptyTabContent label="评论" />
                     ) : (
@@ -432,46 +630,54 @@ export default function MyScreen() {
                     )}
                 </ScrollView>
 
-                <ScrollView ref={(r) => { tabScrollRefs.current['favorites'] = r; }} {...tabScrollProps}>
+                <ScrollView ref={(r) => { tabScrollRefs.current['favorites'] = r; }} {...baseTabScrollStyle} onScroll={getScrollHandler('favorites')}>
                     {renderWaterfall(myFavorites, (item) => handleListLike(item, setMyFavorites), '收藏')}
                 </ScrollView>
 
-                <ScrollView ref={(r) => { tabScrollRefs.current['liked'] = r; }} {...tabScrollProps}>
+                <ScrollView ref={(r) => { tabScrollRefs.current['liked'] = r; }} {...baseTabScrollStyle} onScroll={getScrollHandler('liked')}>
                     {renderWaterfall(myLiked, (item) => handleListLike(item, setMyLiked), '赞过')}
                 </ScrollView>
 
-                <ScrollView ref={(r) => { tabScrollRefs.current['viewed'] = r; }} {...tabScrollProps}>
+                <ScrollView ref={(r) => { tabScrollRefs.current['viewed'] = r; }} {...baseTabScrollStyle} onScroll={getScrollHandler('viewed')}>
                     {renderWaterfall(myViewed, (item) => handleListLike(item, setMyViewed), '看过')}
                 </ScrollView>
-            </SwipeTabView>
+                    </SwipeTabView>
 
-            <View
-                style={[styles.topBar, { paddingTop: insets.top + Spacing.sm }, hasBgImage && styles.topBarWithBg]}
-                onLayout={(e) => setTopBarH(e.nativeEvent.layout.height)}
-            >
-                <TouchableOpacity style={styles.topBarBtn} onPress={() => {
-                    if (!isLoggedIn) { router.push('/login'); return; }
-                    setDrawerVisible(true);
-                }}>
-                    <Feather name="menu" size={24} color={hasBgImage ? Colors.white : Colors.textPrimary} />
-                </TouchableOpacity>
+                    <View
+                        style={[styles.topBar, { paddingTop: insets.top + Spacing.sm }, hasBgImage && styles.topBarWithBg]}
+                        onLayout={(e) => setTopBarH(e.nativeEvent.layout.height)}
+                    >
+                        <TouchableOpacity style={styles.topBarBtn} onPress={() => {
+                            if (!isLoggedIn) { router.push('/login'); return; }
+                            setDrawerVisible(true);
+                        }}>
+                            <Feather name="menu" size={24} color={hasBgImage ? Colors.white : Colors.textPrimary} />
+                        </TouchableOpacity>
 
-                <Animated.View style={[styles.navAvatarWrap, { opacity: navAvatarOpacity }]}>
-                    <ExpoImage
-                        source={{ uri: userData.avatar || 'https://picsum.photos/200/200?random=1' }}
-                        style={styles.navAvatar}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                    />
-                    <Text style={[styles.navUsername, hasBgImage && { color: Colors.white }]} numberOfLines={1}>
-                        {userData.username || ''}
-                    </Text>
+                        <Animated.View style={[styles.navAvatarWrap, { opacity: navAvatarOpacity }]}>
+                            <ExpoImage
+                                source={{ uri: userData!.avatar || 'https://picsum.photos/200/200?random=1' }}
+                                style={styles.navAvatar}
+                                contentFit="cover"
+                                cachePolicy="memory-disk"
+                            />
+                            <Text style={[styles.navUsername, hasBgImage && { color: Colors.white }]} numberOfLines={1}>
+                                {userData!.username || ''}
+                            </Text>
+                        </Animated.View>
+
+                        <TouchableOpacity style={styles.topBarBtn} onPress={() => router.push('/scanner')}>
+                            <MaterialCommunityIcons name="line-scan" size={22} color={hasBgImage ? Colors.white : Colors.textPrimary} />
+                        </TouchableOpacity>
+                    </View>
+                </>
+            )}
+
+            {!skeletonDismissed && (
+                <Animated.View style={[StyleSheet.absoluteFill, { opacity: skeletonFade, zIndex: 30 }]}>
+                    <MyScreenSkeleton topInset={insets.top} />
                 </Animated.View>
-
-                <TouchableOpacity style={styles.topBarBtn} onPress={() => router.push('/scanner')}>
-                    <MaterialCommunityIcons name="line-scan" size={22} color={hasBgImage ? Colors.white : Colors.textPrimary} />
-                </TouchableOpacity>
-            </View>
+            )}
         </View>
     );
 }

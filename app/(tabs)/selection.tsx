@@ -9,7 +9,9 @@ import {
     SectionList,
     Alert,
     Dimensions,
+    Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useCatalogBrands } from '@/features/catalog/hooks';
@@ -18,9 +20,133 @@ import { LoadingStateView } from '@/components/LoadingStateView';
 import { CommonStyles, Colors, Spacing, FontSize, Shadows } from '../../config/styles';
 import { RemoteImage } from '../../components/RemoteImage';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const width = SCREEN_WIDTH;
 const ITEM_HEIGHT = 73;
 const SECTION_HEADER_HEIGHT = 36;
+const SHIMMER_W = SCREEN_WIDTH * 2;
+const SKEL_BONE = '#e8e8e8';
+
+const SelectionScreenSkeleton = () => {
+    const anim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        const animation = Animated.loop(
+            Animated.timing(anim, {
+                toValue: 1,
+                duration: 2500,
+                useNativeDriver: true,
+            }),
+        );
+        animation.start();
+        return () => animation.stop();
+    }, []);
+
+    const translateX = anim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [-SHIMMER_W, SCREEN_WIDTH],
+    });
+
+    const shimmerOverlay = (
+        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}>
+            <LinearGradient
+                colors={[SKEL_BONE, '#f5f5f5', SKEL_BONE]}
+                locations={[0.08, 0.18, 0.33]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={{ flex: 1, width: SHIMMER_W }}
+            />
+        </Animated.View>
+    );
+
+    const Bone = ({ w, h, r = 6, style }: { w: number | string; h?: number; r?: number; style?: any }) => (
+        <View style={[{ width: w, height: h, borderRadius: r, backgroundColor: SKEL_BONE, overflow: 'hidden' }, style]}>
+            {shimmerOverlay}
+        </View>
+    );
+
+    const itemW = (SCREEN_WIDTH - Spacing.lg * 2 - 48) / 4;
+
+    const brandGridSkeleton = () => (
+        <View style={skelStyles.gridRow}>
+            {[0, 1, 2, 3].map(i => (
+                <View key={i} style={[skelStyles.gridItem, { width: itemW }]}>
+                    <Bone w={40} h={40} r={4} />
+                    <Bone w={36} h={10} r={4} style={{ marginTop: 8 }} />
+                </View>
+            ))}
+        </View>
+    );
+
+    const brandListItem = () => (
+        <View style={skelStyles.listItem}>
+            <Bone w={40} h={40} r={4} />
+            <View style={skelStyles.listItemText}>
+                <Bone w={80} h={14} r={4} style={{ marginBottom: Spacing.xs }} />
+                <Bone w={60} h={10} r={4} />
+            </View>
+        </View>
+    );
+
+    return (
+        <View style={skelStyles.root}>
+            <View style={skelStyles.searchBar}>
+                <Bone w="100%" h={44} r={Spacing.sm} />
+            </View>
+
+            <Bone w={64} h={16} r={4} style={{ marginLeft: Spacing.lg, marginTop: Spacing.lg, marginBottom: Spacing.md }} />
+            {brandGridSkeleton()}
+
+            <Bone w={64} h={16} r={4} style={{ marginLeft: Spacing.lg, marginTop: Spacing.lg, marginBottom: Spacing.md }} />
+            {brandGridSkeleton()}
+
+            <View style={skelStyles.sectionHeader}>
+                <Bone w={16} h={14} r={4} />
+            </View>
+            {[0, 1, 2, 3, 4, 5].map(i => (
+                <View key={i}>{brandListItem()}</View>
+            ))}
+        </View>
+    );
+};
+
+const skelStyles = StyleSheet.create({
+    root: { flex: 1, backgroundColor: Colors.background },
+    searchBar: {
+        marginHorizontal: Spacing.lg,
+        marginVertical: Spacing.lg,
+    },
+    gridRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+    },
+    gridItem: {
+        alignItems: 'center',
+        backgroundColor: Colors.backgroundWhite,
+        borderRadius: Spacing.sm,
+        padding: Spacing.md,
+        ...Shadows.small,
+    },
+    sectionHeader: {
+        backgroundColor: Colors.backgroundGray,
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.sm,
+        marginTop: Spacing.sm,
+    },
+    listItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.backgroundWhite,
+        padding: Spacing.lg,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: Colors.border,
+    },
+    listItemText: {
+        flex: 1,
+        marginLeft: 12,
+    },
+});
 
 const priceFilters = [
     { id: 1, label: '1-2千', minPrice: 1000, maxPrice: 2000 },
@@ -53,6 +179,8 @@ const BrandImage = ({ uri, style }: { uri: string; style: any }) => {
 export default function SelectionScreen() {
     const router = useRouter();
     const { brands: catalogBrands, loading, error } = useCatalogBrands();
+    const skeletonFade = useRef(new Animated.Value(1)).current;
+    const [skeletonDismissed, setSkeletonDismissed] = useState(false);
 
     const [allBrands, setAllBrands] = useState<any[]>([]);
     const [brands, setBrands] = useState<any[]>([]);
@@ -68,6 +196,16 @@ export default function SelectionScreen() {
             Alert.alert('错误', error);
         }
     }, [error]);
+
+    useEffect(() => {
+        if (!loading && !skeletonDismissed) {
+            Animated.timing(skeletonFade, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }).start(() => setSkeletonDismissed(true));
+        }
+    }, [loading, skeletonDismissed]);
 
     function groupBrandsByInitial(brandsData: any[]) {
         const grouped: Record<string, any[]> = {};
@@ -255,20 +393,6 @@ export default function SelectionScreen() {
         </View>
     );
 
-    if (loading) {
-        return (
-            <SafeAreaView style={CommonStyles.container}>
-                <LoadingStateView
-                    text="加载中..."
-                    size={28}
-                    color={Colors.primary}
-                    style={CommonStyles.loadingContainer}
-                    textStyle={CommonStyles.loadingTextSmall}
-                />
-            </SafeAreaView>
-        );
-    }
-
     return (
         <SafeAreaView style={CommonStyles.container}>
             <View style={styles.searchContainer}>
@@ -323,6 +447,12 @@ export default function SelectionScreen() {
                 </View>
                 {renderAlphabetNav()}
             </View>
+
+            {!skeletonDismissed && (
+                <Animated.View style={[StyleSheet.absoluteFill, { opacity: skeletonFade, zIndex: 30 }]}>
+                    <SelectionScreenSkeleton />
+                </Animated.View>
+            )}
         </SafeAreaView>
     );
 }

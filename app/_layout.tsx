@@ -12,6 +12,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/shared/query/client';
 import { AuthProvider } from '../config/auth';
 import ChatOverlay from '../components/ChatOverlay';
+import GlobalToast from '../components/GlobalToast';
 
 LogBox.ignoreAllLogs(false);
 
@@ -50,6 +51,7 @@ export default function RootLayout() {
             <Stack.Screen name="+not-found" />
           </Stack>
           <ChatOverlay />
+          <GlobalToast />
         </View>
       </AuthProvider>
     </GestureHandlerRootView>

@@ -9,6 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { fetchChatHistory, fetchConversations as fetchConversationList, sendChatMessage } from '@/features/im/api';
 import type { ChatMessageItem } from '@/features/im/types';
+import { queryClient } from '@/shared/query/client';
+import { queryKeys } from '@/shared/query/keys';
 import { fetchBasicInfo } from '@/features/profile/api';
 import { Colors, Spacing, FontSize } from '../config/styles';
 import { useAuth } from '../config/auth';
@@ -237,6 +239,7 @@ export default function ChatWindow({
             } else {
                 fetchMessages();
             }
+            queryClient.invalidateQueries({ queryKey: queryKeys.conversations() });
         } catch {} finally { setSending(false); }
     };
 

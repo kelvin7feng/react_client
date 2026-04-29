@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { API_BASE_URL } from '../config/env';
+import { showGlobalToast } from '../../components/GlobalToast';
 
 type QueryValue = string | number | boolean | null | undefined;
 type Query = Record<string, QueryValue>;
@@ -66,15 +67,28 @@ const buildHeaders = async (headers?: HeadersInit, body?: BodyInit | null) => {
   return result;
 };
 
+function isNetworkError(err: unknown): boolean {
+  return err instanceof TypeError && /network|fetch|abort/i.test((err as TypeError).message);
+}
+
 export async function requestJson<T>(
   path: string,
   options: RequestInit & { query?: Query } = {}
 ): Promise<ApiEnvelope<T>> {
   const { query, ...requestOptions } = options;
-  const response = await fetch(buildUrl(path, query), {
-    ...requestOptions,
-    headers: await buildHeaders(requestOptions.headers, requestOptions.body ?? null),
-  });
+
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, query), {
+      ...requestOptions,
+      headers: await buildHeaders(requestOptions.headers, requestOptions.body ?? null),
+    });
+  } catch (err) {
+    if (isNetworkError(err)) {
+      showGlobalToast('网络连接断开，请检查网络设置');
+    }
+    throw err;
+  }
 
   const rawText = await response.text();
   let payload: unknown = null;
@@ -105,10 +119,19 @@ export async function requestRawJson<T>(
   options: RequestInit & { query?: Query } = {}
 ): Promise<T> {
   const { query, ...requestOptions } = options;
-  const response = await fetch(buildUrl(path, query), {
-    ...requestOptions,
-    headers: await buildHeaders(requestOptions.headers, requestOptions.body ?? null),
-  });
+
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, query), {
+      ...requestOptions,
+      headers: await buildHeaders(requestOptions.headers, requestOptions.body ?? null),
+    });
+  } catch (err) {
+    if (isNetworkError(err)) {
+      showGlobalToast('网络连接断开，请检查网络设置');
+    }
+    throw err;
+  }
 
   const rawText = await response.text();
   let payload: unknown = null;
