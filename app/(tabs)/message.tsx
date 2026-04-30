@@ -2,9 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
     Platform, Alert, Dimensions, NativeSyntheticEvent, NativeScrollEvent,
-    Animated as RNAnimated,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +21,7 @@ import { openChat, preloadSessions } from '../../config/chatManager';
 import { useWSEvent } from '../../config/useWebSocket';
 import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 import { LoadingStateView } from '@/components/LoadingStateView';
+import { SkeletonContainer, Bone, SkeletonOverlay } from '@/components/Skeleton';
 
 type UnreadByType = { likes: number; follows: number; comments: number };
 
@@ -33,79 +32,33 @@ const NAV_BUTTONS = [
 ];
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const SHIMMER_W = SCREEN_WIDTH * 2;
-const SKEL_BONE = '#e8e8e8';
-
-const MessageScreenSkeleton = ({ topInset }: { topInset: number }) => {
-    const anim = useRef(new RNAnimated.Value(0)).current;
-
-    useEffect(() => {
-        const animation = RNAnimated.loop(
-            RNAnimated.timing(anim, {
-                toValue: 1,
-                duration: 2500,
-                useNativeDriver: true,
-            }),
-        );
-        animation.start();
-        return () => animation.stop();
-    }, []);
-
-    const translateX = anim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [-SHIMMER_W, SCREEN_WIDTH],
-    });
-
-    const shimmerOverlay = (
-        <RNAnimated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}>
-            <LinearGradient
-                colors={[SKEL_BONE, '#f5f5f5', SKEL_BONE]}
-                locations={[0.08, 0.18, 0.33]}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={{ flex: 1, width: SHIMMER_W }}
-            />
-        </RNAnimated.View>
-    );
-
-    const Bone = ({ w, h, r = 6, style }: { w: number | string; h?: number; r?: number; style?: any }) => (
-        <View style={[{ width: w, height: h, borderRadius: r, backgroundColor: SKEL_BONE, overflow: 'hidden' }, style]}>
-            {shimmerOverlay}
+const MessageScreenSkeleton = ({ topInset }: { topInset: number }) => (
+    <SkeletonContainer style={skelStyles.root}>
+        <View style={[skelStyles.header, { paddingTop: topInset + Spacing.sm }]}>
+            <Bone w={48} h={22} r={4} />
         </View>
-    );
-
-    const convSkeleton = () => (
-        <View style={skelStyles.convRow}>
-            <Bone w={48} h={48} r={24} />
-            <View style={skelStyles.convBody}>
-                <View style={skelStyles.convHeader}>
-                    <Bone w={80} h={14} r={4} />
-                    <Bone w={40} h={10} r={4} />
+        <View style={skelStyles.navBar}>
+            {[0, 1, 2].map(i => (
+                <View key={i} style={skelStyles.navItem}>
+                    <Bone w={48} h={48} r={16} />
+                    <Bone w={42} h={10} r={4} style={{ marginTop: Spacing.xs }} />
                 </View>
-                <Bone w="70%" h={12} r={4} />
-            </View>
-        </View>
-    );
-
-    return (
-        <View style={skelStyles.root}>
-            <View style={[skelStyles.header, { paddingTop: topInset + Spacing.sm }]}>
-                <Bone w={48} h={22} r={4} />
-            </View>
-            <View style={skelStyles.navBar}>
-                {[0, 1, 2].map(i => (
-                    <View key={i} style={skelStyles.navItem}>
-                        <Bone w={48} h={48} r={16} />
-                        <Bone w={42} h={10} r={4} style={{ marginTop: Spacing.xs }} />
-                    </View>
-                ))}
-            </View>
-            {[0, 1, 2, 3, 4, 5].map(i => (
-                <View key={i}>{convSkeleton()}</View>
             ))}
         </View>
-    );
-};
+        {[0, 1, 2, 3, 4, 5].map(i => (
+            <View key={i} style={skelStyles.convRow}>
+                <Bone w={48} h={48} r={24} />
+                <View style={skelStyles.convBody}>
+                    <View style={skelStyles.convHeader}>
+                        <Bone w={80} h={14} r={4} />
+                        <Bone w={40} h={10} r={4} />
+                    </View>
+                    <Bone w="70%" h={12} r={4} />
+                </View>
+            </View>
+        ))}
+    </SkeletonContainer>
+);
 
 const skelStyles = StyleSheet.create({
     root: { flex: 1, backgroundColor: Colors.backgroundWhite },
@@ -310,14 +263,13 @@ export default function MessageScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [activeSwipeId, setActiveSwipeId] = useState<string | null>(null);
     const scrollY = useSharedValue(0);
-    const skeletonFade = useRef(new RNAnimated.Value(1)).current;
-    const [skeletonDismissed, setSkeletonDismissed] = useState(false);
 
     const {
         data: convData,
         isLoading: loading,
         refetch: refetchConversations,
     } = useConversations(!!userId);
+    const skeletonReady = !loading;
 
     const {
         data: unreadData,
@@ -339,16 +291,6 @@ export default function MessageScreen() {
             })));
         }
     }, [convData, userId]);
-
-    useEffect(() => {
-        if (!loading && !skeletonDismissed) {
-            RNAnimated.timing(skeletonFade, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: true,
-            }).start(() => setSkeletonDismissed(true));
-        }
-    }, [loading, skeletonDismissed]);
 
     useFocusEffect(useCallback(() => {
         if (!isLoggedIn) {
@@ -475,11 +417,9 @@ export default function MessageScreen() {
                 </View>
             )}
 
-            {!skeletonDismissed && (
-                <RNAnimated.View style={[StyleSheet.absoluteFill, { opacity: skeletonFade, zIndex: 30 }]}>
-                    <MessageScreenSkeleton topInset={insets.top} />
-                </RNAnimated.View>
-            )}
+            <SkeletonOverlay ready={skeletonReady}>
+                <MessageScreenSkeleton topInset={insets.top} />
+            </SkeletonOverlay>
         </View>
     );
 }

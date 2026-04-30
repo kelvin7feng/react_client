@@ -37,10 +37,9 @@ import { SwipeTabView } from '../../components/SwipeTabView';
 import { SettingsDrawer } from '../../components/SettingsDrawer';
 import { BouncingDotsIndicator } from '@/components/BouncingDotsIndicator';
 import { LoadingStateView } from '@/components/LoadingStateView';
+import { SkeletonContainer, Bone, SkeletonOverlay } from '@/components/Skeleton';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SHIMMER_W = SCREEN_WIDTH * 2;
-
 const TAB_ICON_SIZE = 14;
 const TABS = [
     {
@@ -111,105 +110,54 @@ const CommentListItem = ({ item, onPress }: { item: any; onPress: (id: number) =
     </TouchableOpacity>
 );
 
-const SKEL_BONE = '#e8e8e8';
-
 const MyScreenSkeleton = ({ topInset }: { topInset: number }) => {
-    const anim = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        const animation = Animated.loop(
-            Animated.timing(anim, {
-                toValue: 1,
-                duration: 2500,
-                useNativeDriver: true,
-            }),
-        );
-        animation.start();
-        return () => animation.stop();
-    }, []);
-
-    const translateX = anim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [-SHIMMER_W, SCREEN_WIDTH],
-    });
-
-    const shimmerOverlay = (
-        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}>
-            <LinearGradient
-                colors={[SKEL_BONE, '#f5f5f5', SKEL_BONE]}
-                locations={[0.08, 0.18, 0.33]}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={{ flex: 1, width: SHIMMER_W }}
-            />
-        </Animated.View>
-    );
-
-    const bone = (w: number | string, h: number, r = 6, extra?: object) => (
-        <View style={[{ width: w, height: h, backgroundColor: SKEL_BONE, borderRadius: r, overflow: 'hidden' }, extra]}>
-            {shimmerOverlay}
-        </View>
-    );
-
-    const cardSkeleton = (titleW = '85%') => (
+    const MyCardSkeleton = ({ titleW = '85%' }: { titleW?: string }) => (
         <View style={skelStyles.card}>
-            <View style={[skelStyles.cardImage, { overflow: 'hidden' }]}>
-                {shimmerOverlay}
-            </View>
+            <Bone w="100%" r={0} style={skelStyles.cardImage} />
             <View style={skelStyles.cardBody}>
-                {bone(titleW, 12, 4)}
+                <Bone w={titleW} h={12} r={4} />
                 <View style={skelStyles.cardFooter}>
-                    {bone(50, 10, 4)}
-                    {bone(30, 10, 4)}
+                    <Bone w={50} h={10} r={4} />
+                    <Bone w={30} h={10} r={4} />
                 </View>
             </View>
         </View>
     );
 
     return (
-        <View style={skelStyles.root}>
-            {/* topBar: paddingTop + 36px btn + paddingBottom */}
+        <SkeletonContainer style={skelStyles.root}>
             <View style={[skelStyles.topBar, { paddingTop: topInset + Spacing.sm }]}>
-                {bone(36, 36, 18)}
-                {bone(36, 36, 18)}
+                <Bone w={36} h={36} r={18} />
+                <Bone w={36} h={36} r={18} />
             </View>
-            {/* profileSectionWrap: profileHeader + statsRow + paddingBottom */}
             <View style={skelStyles.profileWrap}>
                 <View style={skelStyles.profileHeader}>
-                    {bone(70, 70, 35)}
+                    <Bone w={70} h={70} r={35} />
                     <View style={skelStyles.profileText}>
-                        {bone(110, 18, 9, { marginBottom: Spacing.sm })}
-                        {bone(160, 13)}
+                        <Bone w={110} h={18} r={9} style={{ marginBottom: Spacing.sm }} />
+                        <Bone w={160} h={13} />
                     </View>
                 </View>
-                <View style={skelStyles.statsRow}>
-                    {[0, 1, 2, 3].map(i => (
-                        <View key={i} style={skelStyles.statItem}>
-                            {bone(30, 16, 4, { marginBottom: 2 })}
-                            {bone(22, 11, 4)}
-                        </View>
-                    ))}
-                </View>
+                <View style={skelStyles.statsCard} />
             </View>
-            {/* tabBar + cards 白色圆角区域 */}
             <View style={skelStyles.tabBarMask}>
                 <View style={skelStyles.contentArea}>
                     <View style={skelStyles.tabBarPlaceholder}>
-                        {bone('75%', 20, 10)}
+                        <Bone w="90%" h={20} r={10} />
                     </View>
                     <View style={skelStyles.grid}>
                         <View style={skelStyles.gridCol}>
-                            {cardSkeleton('70%')}
-                            {cardSkeleton('55%')}
+                            <MyCardSkeleton titleW="70%" />
+                            <MyCardSkeleton titleW="55%" />
                         </View>
                         <View style={skelStyles.gridCol}>
-                            {cardSkeleton('60%')}
-                            {cardSkeleton('80%')}
+                            <MyCardSkeleton titleW="60%" />
+                            <MyCardSkeleton titleW="80%" />
                         </View>
                     </View>
                 </View>
             </View>
-        </View>
+        </SkeletonContainer>
     );
 };
 
@@ -232,13 +180,14 @@ const skelStyles = StyleSheet.create({
         paddingHorizontal: Spacing.xl,
     },
     profileText: { flex: 1, marginLeft: Spacing.lg },
-    statsRow: {
-        flexDirection: 'row',
-        paddingHorizontal: Spacing.xl,
-        paddingTop: Spacing.sm,
-        gap: Spacing.xxl,
+    statsCard: {
+        marginLeft: Spacing.xl,
+        marginTop: Spacing.sm,
+        width: '45%',
+        height: 52,
+        backgroundColor: 'rgba(0,0,0,0.04)',
+        borderRadius: 12,
     },
-    statItem: { alignItems: 'center' },
     tabBarMask: {
         flex: 1,
         backgroundColor: '#ededed',
@@ -274,7 +223,6 @@ const skelStyles = StyleSheet.create({
     cardImage: {
         width: '100%',
         aspectRatio: 3 / 4,
-        backgroundColor: SKEL_BONE,
     },
     cardBody: {
         padding: Spacing.sm,
@@ -322,14 +270,12 @@ export default function MyScreen() {
     const tabScrollRefs = useRef<Record<string, ScrollView | null>>({});
     const activeTabKeyRef = useRef(TABS[0].key);
     const syncTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-    const skeletonFade = useRef(new Animated.Value(1)).current;
-    const [skeletonDismissed, setSkeletonDismissed] = useState(false);
 
     const safeProfileH = Math.max(profileH, 1);
     const totalHeaderH = topBarH + profileH + tabBarH;
     const headerMeasured = topBarH > 0 && profileH > 0 && tabBarH > 0;
     const showContent = !isLoading && !!userData;
-    const contentReady = showContent && headerMeasured;
+    const skeletonReady = showContent && headerMeasured;
 
     useEffect(() => {
         if (data?.user?.bg_image) ExpoImage.prefetch(data.user.bg_image);
@@ -455,15 +401,6 @@ export default function MyScreen() {
         return off;
     }, [queryClient, userId]);
 
-    useEffect(() => {
-        if (contentReady && !skeletonDismissed) {
-            Animated.timing(skeletonFade, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: true,
-            }).start(() => setSkeletonDismissed(true));
-        }
-    }, [contentReady, skeletonDismissed]);
 
     const handleAuthorPress = useCallback((authorId: number) => {
         navigateToUserProfile(router, authorId, userId ?? null);
@@ -570,7 +507,7 @@ export default function MyScreen() {
     };
 
     return (
-        <View style={[styles.safeArea, hasBgImage && contentReady && styles.safeAreaWithBg]}>
+        <View style={[styles.safeArea, hasBgImage && skeletonReady && styles.safeAreaWithBg]}>
             {showContent && (
                 <>
                     <SettingsDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
@@ -673,11 +610,9 @@ export default function MyScreen() {
                 </>
             )}
 
-            {!skeletonDismissed && (
-                <Animated.View style={[StyleSheet.absoluteFill, { opacity: skeletonFade, zIndex: 30 }]}>
-                    <MyScreenSkeleton topInset={insets.top} />
-                </Animated.View>
-            )}
+            <SkeletonOverlay ready={skeletonReady}>
+                <MyScreenSkeleton topInset={insets.top} />
+            </SkeletonOverlay>
         </View>
     );
 }
